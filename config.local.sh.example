@@ -1,0 +1,21 @@
+#!/bin/sh
+# 本机路径覆盖示例。
+#
+# 复制成 config.local.sh 后按自己的实际路径修改：
+#     cp config.local.sh.example config.local.sh
+#
+# config.local.sh 已被 .gitignore 排除，不会进入版本库。
+
+# llama.cpp 编译产物所在目录（里面要有 llama-server）
+export LLAMA_BIN="$HOME/llama.cpp/build/bin"
+
+# 模型扫描目录，冒号分隔多个
+export STRATA_MODEL_DIR="$HOME/models:$HOME/.cache/llama.cpp"
+
+# 也可以直接指定某个模型文件，跳过自动发现
+# export STRATA_MODEL="$HOME/models/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf"
+# export STRATA_MMPROJ="$HOME/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+
+# 端口如需调整
+# export WEB_PORT=8791
+# export SERVE_PORT=8080

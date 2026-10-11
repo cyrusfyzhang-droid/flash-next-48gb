@@ -1,0 +1,20 @@
+# 运行时产物
+logs/
+run/
+*.log
+*.pid
+*.stamp
+
+# 本机配置覆盖（含个人路径，绝不入库）
+config.local.sh
+
+# macOS
+.DS_Store
+._*
+
+# Node（本项目零依赖，仅为保险）
+node_modules/
+
+# 编辑器
+.vscode/
+.idea/
