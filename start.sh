@@ -10,11 +10,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/env.sh"
 
 HEALTH="http://127.0.0.1:$WEB_PORT/api/state"
-mkdir -p "$STRATA_HOME/logs" "$STRATA_HOME/run"
+mkdir -p "$APP_HOME/logs" "$APP_HOME/run"
 
-STAMP="$STRATA_HOME/run/code.stamp"
-FP_SERVER="$(stat -f '%m-%z' "$STRATA_HOME/server.mjs" 2>/dev/null || echo x)"
-FP_PAGE="$(stat -f '%m-%z' "$STRATA_HOME/public/index.html" 2>/dev/null || echo y)"
+STAMP="$APP_HOME/run/code.stamp"
+FP_SERVER="$(stat -f '%m-%z' "$APP_HOME/server.mjs" 2>/dev/null || echo x)"
+FP_PAGE="$(stat -f '%m-%z' "$APP_HOME/public/index.html" 2>/dev/null || echo y)"
 FINGERPRINT="$FP_SERVER-$FP_PAGE"
 
 # 代码指纹变了 → 杀掉旧进程
@@ -39,9 +39,9 @@ if ready; then
   exit 0
 fi
 
-cd "$STRATA_HOME"
-CONSOLE_PORT="$WEB_PORT" nohup "$NODE_BIN" server.mjs >> "$STRATA_HOME/logs/console.log" 2>&1 &
-echo $! > "$STRATA_HOME/run/console.pid"
+cd "$APP_HOME"
+CONSOLE_PORT="$WEB_PORT" nohup "$NODE_BIN" server.mjs >> "$APP_HOME/logs/console.log" 2>&1 &
+echo $! > "$APP_HOME/run/console.pid"
 
 # 等待就绪，最多 25 秒
 i=0

@@ -11,8 +11,8 @@
  *   - 复用同一个 sessionId，让 llama-server 的前缀缓存有稳定的复用目标
  */
 
-const SERVE = process.env.STRATA_SERVE || 'http://127.0.0.1:8080';
-const MODEL_LABEL = process.env.STRATA_MODEL_LABEL || 'Qwen3.8-Flash-Next (Q2_0, 本地)';
+const SERVE = process.env.SERVE_URL || 'http://127.0.0.1:8080';
+const MODEL_LABEL = process.env.MODEL_LABEL || 'Qwen3.8-Flash-Next (Q2_0, 本地)';
 
 /* ── 极简 MCP 框架（stdio + JSON-RPC 2.0） ───────────────────────── */
 

@@ -6,7 +6,7 @@
 # （已被 .gitignore 排除），示例见 config.local.sh.example
 
 # 项目根目录：优先沿用调用脚本所在目录，否则退回当前工作目录
-export STRATA_HOME="${STRATA_HOME:-${DIR:-$(pwd)}}"
+export APP_HOME="${APP_HOME:-${DIR:-$(pwd)}}"
 
 export WEB_PORT="${WEB_PORT:-8791}"       # 控制台界面端口
 export SERVE_PORT="${SERVE_PORT:-8080}"   # llama-server 端口
@@ -15,11 +15,11 @@ export SERVE_PORT="${SERVE_PORT:-8080}"   # llama-server 端口
 export LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
 
 # 模型扫描目录，冒号分隔多个。子目录会被递归扫描，自动识别 GGUF 分片。
-export STRATA_MODEL_DIR="${STRATA_MODEL_DIR:-$HOME/models:$HOME/.cache/llama.cpp}"
+export MODEL_DIRS="${MODEL_DIRS:-$HOME/models:$HOME/.cache/llama.cpp}"
 
 # 指定具体模型（serve.sh 使用）。留空则在上面目录里自动搜索。
-export STRATA_MODEL="${STRATA_MODEL:-}"
-export STRATA_MMPROJ="${STRATA_MMPROJ:-}"
+export MODEL_PATH="${MODEL_PATH:-}"
+export MMPROJ_PATH="${MMPROJ_PATH:-}"
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 

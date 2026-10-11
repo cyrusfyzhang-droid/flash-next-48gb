@@ -18,9 +18,9 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const HOME = process.env.HOME || '';
 // llama.cpp 编译产物目录（里面需有 llama-server 可执行文件）
 const LLAMA_BIN = process.env.LLAMA_BIN || path.join(HOME, 'strata-mac', 'bin');
-// 模型扫描目录：优先取 STRATA_MODEL_DIR（冒号分隔的多个目录），否则用下面的通用默认值。
+// 模型扫描目录：优先取 MODEL_DIRS（冒号分隔的多个目录），否则用下面的通用默认值。
 // 每个目录会被递归扫描，自动识别 GGUF 分片（跳过 mmproj 视觉投影器）。
-const MODEL_ROOTS = (process.env.STRATA_MODEL_DIR || [
+const MODEL_ROOTS = (process.env.MODEL_DIRS || [
   path.join(HOME, 'strata-mac'),
   path.join(HOME, 'models'),
   path.join(HOME, '.cache', 'llama.cpp'),

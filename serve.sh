@@ -7,17 +7,17 @@
 #   ./serve.sh status     查看状态
 #
 # 指定模型（可选）：
-#   STRATA_MODEL=/path/to/xxx-00001-of-00002.gguf ./serve.sh
-#   STRATA_MMPROJ=/path/to/mmproj-xxx.gguf ./serve.sh
+#   MODEL_PATH=/path/to/xxx-00001-of-00002.gguf ./serve.sh
+#   MMPROJ_PATH=/path/to/mmproj-xxx.gguf ./serve.sh
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/env.sh"
 
-LOG="$STRATA_HOME/logs/serve.log"
+LOG="$APP_HOME/logs/serve.log"
 
-# ── 定位模型：优先 STRATA_MODEL，否则在 STRATA_MODEL_DIR 各目录里搜索 ──
+# ── 定位模型：优先 MODEL_PATH，否则在 MODEL_DIRS 各目录里搜索 ──
 find_model() {
-  for _d in $(echo "$STRATA_MODEL_DIR" | tr ':' ' '); do
+  for _d in $(echo "$MODEL_DIRS" | tr ':' ' '); do
     [ -d "$_d" ] || continue
     _f="$(find "$_d" -name '*-00001-of-*.gguf' ! -name 'mmproj*' 2>/dev/null | head -1)"
     if [ -z "$_f" ]; then
@@ -50,19 +50,19 @@ case "${1:-start}" in
     ;;
 esac
 
-MODEL="${STRATA_MODEL:-}"
+MODEL="${MODEL_PATH:-}"
 if [ -z "$MODEL" ]; then
   MODEL="$(find_model || true)"
 fi
 
 if [ -z "$MODEL" ] || [ ! -f "$MODEL" ]; then
-  echo "找不到模型。请设置 STRATA_MODEL，或把 GGUF 放进以下任一目录："
-  echo "$STRATA_MODEL_DIR" | tr ':' '\n' | sed 's/^/  /'
+  echo "找不到模型。请设置 MODEL_PATH，或把 GGUF 放进以下任一目录："
+  echo "$MODEL_DIRS" | tr ':' '\n' | sed 's/^/  /'
   exit 1
 fi
 
 # mmproj（视觉投影器）：优先环境变量，否则找模型同目录下的 mmproj*.gguf
-MMPROJ="${STRATA_MMPROJ:-}"
+MMPROJ="${MMPROJ_PATH:-}"
 if [ -z "$MMPROJ" ]; then
   MMPROJ="$(find "$(dirname "$MODEL")" -maxdepth 1 -name 'mmproj*.gguf' 2>/dev/null | head -1)"
 fi
@@ -78,7 +78,7 @@ if lsof -ti tcp:"$SERVE_PORT" >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$STRATA_HOME/logs"
+mkdir -p "$APP_HOME/logs"
 cd "$LLAMA_BIN"
 
 # 内存账（48GB 统一内存机型）：

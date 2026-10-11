@@ -1,9 +1,26 @@
-# Strata Mac
+# Qwen3.8-Flash-Next on a 48GB Mac
 
-在 macOS 上跑大 MoE 模型的本地推理控制台 —— **llama.cpp + Metal** 的图形化外壳。
+在 **48GB 统一内存**的 Apple Silicon 上跑 125B MoE 大模型 —— **llama.cpp + Metal** 的图形化控制台。
 
 一个零依赖的 Node 控制台：管理 `llama-server` 进程、实时调参、代理聊天请求，
 并内置了对**低比特量化模型**的几个关键适配（前缀缓存、思考等级注入、防重复采样）。
+
+---
+
+## 与同类项目的区别
+
+同样在 Mac 上跑 Qwen3.8-Flash-Next，现有方案的内存门槛都更高：
+
+| 项目 | 跑 Flash-Next 需要 | 技术路线 |
+|---|---|---|
+| [MTPLX](https://github.com/youssofal/MTPLX) | **96GB+** | 原生 MTP 推测解码 |
+| [qwen3.8-flash-next-recipe](https://github.com/arnavprabhu/qwen3.8-flash-next-recipe) | 64GB | llama.cpp + Metal |
+| [Strata-macOS](https://github.com/jinzy0623/Strata-macOS) | — | 移植 Strata UI，但**只能跑 ≤32B 小模型** |
+| **本项目** | **48GB** | Q2_0 低比特量化 + `--lazy-mode` |
+
+**差异化的核心是内存门槛**：用 2.4 bpw 的 Q2_0 量化把 66GB 模型压进 48GB，
+再用 `--lazy-mode on` 把 28.8GB 的 n-gram 表留在磁盘按需读取。
+实测 **34 tok/s** —— 比 64GB 那套方案（约 30 tok/s）还略快。
 
 ---
 
@@ -11,14 +28,11 @@
 
 **本项目不是 [Strata](https://github.com/Niko1221/Strata) 的 fork，也没有使用它的任何代码。**
 
-Strata 是一个 CUDA / ROCm 方向的 Windows / Linux 项目。本项目是在 macOS 上、
-用 llama.cpp 复现**同一思路**的独立实现：
+Strata 是 CUDA / ROCm 方向的 Windows / Linux 项目（其 README 明确只支持
+Windows / Linux + NVIDIA / AMD 显卡）。本项目受它启发 —— 与其把模型压到 4-bit
+再硬塞进内存，不如选更激进的低比特量化（2–3 bpw），让整个模型真正装得下。
 
-> 与其把模型压到 4-bit 再硬塞进内存，不如选更激进的低比特量化（2–3 bpw），
-> 让整个模型真正装得下 —— 速度快得多，质量损失反而更小。
-
-命名沿用 "Strata" 是为了标明思路来源。真正的上游依赖只有
-[llama.cpp](https://github.com/ggml-org/llama.cpp)（MIT）。
+真正的上游依赖只有 [llama.cpp](https://github.com/ggml-org/llama.cpp)（MIT）。
 
 ---
 
@@ -142,9 +156,9 @@ hf download ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF \
 ### 3. 配置
 
 ```sh
-git clone <this-repo> StrataMac && cd StrataMac
+git clone <this-repo-url> flash-next-48gb && cd flash-next-48gb
 cp config.local.sh.example config.local.sh
-$EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 STRATA_MODEL_DIR
+$EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 MODEL_DIRS
 ```
 
 `config.local.sh` 已被 `.gitignore` 排除，个人路径不会进版本库。
@@ -184,8 +198,8 @@ $EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 STRATA_MODEL_DIR
   "mcpServers": {
     "strata-mac": {
       "command": "node",
-      "args": ["/path/to/strata-mac/mcp-server.mjs"],
-      "env": { "STRATA_SERVE": "http://127.0.0.1:8080" }
+      "args": ["/path/to/flash-next-48gb/mcp-server.mjs"],
+      "env": { "SERVE_URL": "http://127.0.0.1:8080" }
     }
   }
 }
@@ -199,11 +213,11 @@ $EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 STRATA_MODEL_DIR
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `STRATA_HOME` | 脚本所在目录 | 项目根 |
+| `APP_HOME` | 脚本所在目录 | 项目根 |
 | `LLAMA_BIN` | `$HOME/llama.cpp/build/bin` | llama.cpp 产物目录 |
-| `STRATA_MODEL_DIR` | `$HOME/models:$HOME/.cache/llama.cpp` | 模型扫描目录（冒号分隔） |
-| `STRATA_MODEL` | 空 | 直接指定模型文件，跳过自动发现 |
-| `STRATA_MMPROJ` | 空 | 视觉投影器，留空则自动找同目录 `mmproj*.gguf` |
+| `MODEL_DIRS` | `$HOME/models:$HOME/.cache/llama.cpp` | 模型扫描目录（冒号分隔） |
+| `MODEL_PATH` | 空 | 直接指定模型文件，跳过自动发现 |
+| `MMPROJ_PATH` | 空 | 视觉投影器，留空则自动找同目录 `mmproj*.gguf` |
 | `WEB_PORT` | 8791 | 控制台端口 |
 | `SERVE_PORT` | 8080 | llama-server 端口 |
 | `NODE_BIN` | 自动探测 | Node 可执行文件 |
@@ -230,7 +244,7 @@ KV cache (q4_0 @ 65536)   3.0 GB
 ## 目录结构
 
 ```
-strata-mac/
+flash-next-48gb/
 ├── server.mjs               控制台后端（零依赖）
 ├── mcp-server.mjs           MCP 服务器
 ├── public/index.html        前端界面

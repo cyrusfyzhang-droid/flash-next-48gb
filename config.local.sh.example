@@ -10,11 +10,11 @@
 export LLAMA_BIN="$HOME/llama.cpp/build/bin"
 
 # 模型扫描目录，冒号分隔多个
-export STRATA_MODEL_DIR="$HOME/models:$HOME/.cache/llama.cpp"
+export MODEL_DIRS="$HOME/models:$HOME/.cache/llama.cpp"
 
 # 也可以直接指定某个模型文件，跳过自动发现
-# export STRATA_MODEL="$HOME/models/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf"
-# export STRATA_MMPROJ="$HOME/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+# export MODEL_PATH="$HOME/models/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf"
+# export MMPROJ_PATH="$HOME/models/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
 
 # 端口如需调整
 # export WEB_PORT=8791

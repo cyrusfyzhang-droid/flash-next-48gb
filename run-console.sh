@@ -3,5 +3,5 @@
 set -eu
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/env.sh"
-cd "$STRATA_HOME"
+cd "$APP_HOME"
 exec "$NODE_BIN" server.mjs

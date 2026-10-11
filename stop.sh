@@ -10,7 +10,7 @@ if [ -n "$PIDS" ]; then
   echo "$PIDS" | xargs kill 2>/dev/null && echo "已停止 llama-server（端口 $SERVE_PORT）"
 fi
 
-PIDFILE="$STRATA_HOME/run/console.pid"
+PIDFILE="$APP_HOME/run/console.pid"
 if [ -f "$PIDFILE" ]; then
   PID="$(cat "$PIDFILE" 2>/dev/null || true)"
   if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
