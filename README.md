@@ -156,7 +156,8 @@ hf download ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF \
 ### 3. 配置
 
 ```sh
-git clone <this-repo-url> flash-next-48gb && cd flash-next-48gb
+git clone https://github.com/cyrusfyzhang-droid/flash-next-48gb.git
+cd flash-next-48gb
 cp config.local.sh.example config.local.sh
 $EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 MODEL_DIRS
 ```
