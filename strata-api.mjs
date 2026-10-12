@@ -150,11 +150,14 @@ export async function staticInfo() {
     sysctl('hw.model'),
     gpuCoreCount(),
   ]);
+  // MACHINE_NAME 可以覆盖界面上显示的机型名。默认按实际硬件读；
+  // 用途：演示截图时不想暴露具体机型，或硬件信息读不到时的兜底。
+  const override = (process.env.MACHINE_NAME || '').trim();
   _static = {
-    cpu_name: brand || os.cpus()[0]?.model || 'Unknown',
+    cpu_name: override || brand || os.cpus()[0]?.model || 'Unknown',
     cores: phys ? Number(phys) : os.cpus().length,
     threads: logical ? Number(logical) : os.cpus().length,
-    gpu_name: brand ? `${brand} GPU` : null,
+    gpu_name: override ? `${override} GPU` : (brand ? `${brand} GPU` : null),
     gpu_cores: gpuCores,          // 界面上的「40 核 GPU」
     gpu_note: 'unified memory — no separate VRAM',
     psutil: true,

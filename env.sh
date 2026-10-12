@@ -17,6 +17,10 @@ export LLAMA_BIN="${LLAMA_BIN:-$HOME/llama.cpp/build/bin}"
 # 模型扫描目录，冒号分隔多个。子目录会被递归扫描，自动识别 GGUF 分片。
 export MODEL_DIRS="${MODEL_DIRS:-$HOME/models:$HOME/.cache/llama.cpp}"
 
+# 界面上显示的机型名。留空 = 按实际硬件读（sysctl）。
+# 想显示别的名字（例如演示用）就在这里覆盖，例：export MACHINE_NAME="Apple M5 Max"
+export MACHINE_NAME="${MACHINE_NAME:-}"
+
 # 指定具体模型（serve.sh 使用）。留空则在上面目录里自动搜索。
 export MODEL_PATH="${MODEL_PATH:-}"
 export MMPROJ_PATH="${MMPROJ_PATH:-}"

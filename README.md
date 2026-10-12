@@ -142,7 +142,7 @@ GPU 温度、功耗、PCIe 在 macOS 上需要 `sudo powermetrics` 或根本不�
 
 ## 实测数据
 
-**硬件**：Apple Silicon / 48GB 统一内存
+**硬件**：Apple Silicon（M3 / M4 / M5 的 Max 或 Ultra）/ 48GB 统一内存起步
 **模型**：Qwen3.8-Flash-Next（GSQ-RCO GGUF，Q2_0 量化，66.4 GB）
 
 ### 速度
@@ -287,6 +287,13 @@ $EDITOR config.local.sh        # 填你的 LLAMA_BIN 和 MODEL_DIRS
 | `WEB_PORT` | 8791 | 控制台端口 |
 | `SERVE_PORT` | 8080 | llama-server 端口 |
 | `NODE_BIN` | 自动探测 | Node 可执行文件 |
+| `MACHINE_NAME` | 空 | 覆盖界面上显示的机型名；留空则按 `sysctl` 实际读取 |
+
+> `MACHINE_NAME` 只影响**界面显示**，不改变任何实际行为（硬件信息仍按真实硬件采样）。
+> 典型用途是演示截图时不想暴露具体机型：
+> ```sh
+> export MACHINE_NAME="Apple M5 Max"
+> ```
 
 ---
 
