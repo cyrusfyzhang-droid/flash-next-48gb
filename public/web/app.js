@@ -50,7 +50,7 @@ async function copyText(text, btn) {
     use.setAttribute("href", `${SPRITE}#i-check`);
     setTimeout(() => use.setAttribute("href", `${SPRITE}#i-copy`), 1500);
   }
-  toast("success", "Copied to clipboard", "", 1800);
+  toast("success", "已复制到剪贴板", "", 1800);
 }
 
 // ------------------------------------------------------------------ theme and tabs
@@ -94,30 +94,28 @@ function headers(json = false) {
   return h;
 }
 $("api-key").value = store.get("apikey", "");
-$("api-key").onchange = () => { store.set("apikey", $("api-key").value.trim()); toast("success", "API key saved", "Kept in this browser only."); };
+$("api-key").onchange = () => { store.set("apikey", $("api-key").value.trim()); toast("success", "API 密钥已保存", "仅保存在这个浏览器里。"); };
 
 let health = {model: "strata", images: false, max_context: 0};
 async function loadHealth() {
   try {
     health = await (await fetch("health")).json();
-    $("attach-btn").title = health.images ? "Attach a text file or a picture (or drop it here)"
-                                          : "Attach a text file (or drop it here)";
-    $("chat-empty-sub").textContent = `${health.model} runs on this PC. Nothing leaves it.`;
+    $("attach-btn").title = health.images ? "附加文本文件或图片（也可拖放到此处）"
+                                          : "附加文本文件（也可拖放到此处）";
+    $("chat-empty-sub").textContent = `${health.model} 跑在这台机器上，数据不出本机。`;
   } catch (e) {
     setTimeout(loadHealth, 2000);
   }
 }
 
 // ------------------------------------------------------------------ Monitor
+// 只保留三张卡：速度 / GPU 核心数 / 内存总量。
+// Apple Silicon 是统一内存，显存与内存是同一块；温度、功耗、PCIe 在 Mac 上拿不到，
+// 显示成 "–" 只是噪音，所以直接去掉。
 const METRICS = [
-  {key: "speed", label: "Speed", icon: "gauge", unit: "t/s", series: "tok_s"},
-  {key: "gpu", label: "GPU load", icon: "gpu", unit: "%", series: "gpu_util", max: 100},
-  {key: "vram", label: "VRAM", icon: "layers", unit: "GB", series: "gpu_mem_used"},
-  {key: "temp", label: "GPU temp", icon: "thermometer", unit: "°C", series: "gpu_temp", tone: "warn"},
-  {key: "power", label: "Power", icon: "bolt", unit: "W", series: "gpu_power"},
-  {key: "pcie", label: "PCIe", icon: "link", unit: "", series: "gpu_pcie_rx_mb", tone: "info"},
-  {key: "cpu", label: "CPU", icon: "cpu", unit: "%", series: "cpu", max: 100},
-  {key: "disk", label: "Disk read", icon: "disk", unit: "MB/s", series: "disk_read_mb", tone: "info"},
+  {key: "speed", label: "速度", icon: "gauge", unit: "t/s", series: "tok_s"},
+  {key: "gpu",   label: "GPU",  icon: "gpu",   unit: "",    series: null},
+  {key: "ram",   label: "内存", icon: "layers", unit: "",   series: null},
 ];
 $("metrics").innerHTML = METRICS.map((m) => `
   <div class="st-card metric-card"><div class="st-metric">
@@ -137,6 +135,7 @@ $("metrics").innerHTML = METRICS.map((m) => `
 
 function spark(id, values, max) {
   const svg = $(id);
+  if (!svg) return;                       // 卡片已被精简掉
   const v = (values || []).map((x) => (x == null ? 0 : x));
   if (v.length < 2) { svg.querySelector(".line").setAttribute("d", ""); svg.querySelector(".area").setAttribute("d", ""); return; }
   const top = Math.max(max || 0, ...v, 1);
@@ -146,8 +145,10 @@ function spark(id, values, max) {
   svg.querySelector(".area").setAttribute("d", `${line}L100,32L0,32Z`);
 }
 function setMetric(key, value, unit, sub) {
-  $(`mv-${key}`).innerHTML = value == null ? "–" : `${esc(value)}${unit ? `<small>${esc(unit)}</small>` : ""}`;
-  $(`ms-${key}`).textContent = sub || "";
+  const v = $(`mv-${key}`), t = $(`ms-${key}`);
+  if (!v || !t) return;                   // 卡片已被精简掉
+  v.innerHTML = value == null ? "–" : `${esc(value)}${unit ? `<small>${esc(unit)}</small>` : ""}`;
+  t.textContent = sub || "";
 }
 
 let lastMetrics = null, metricsFailures = 0, keyWarned = false, mcpTick = 0;
@@ -156,8 +157,8 @@ async function poll() {
   try {
     const r = await fetch(reqShowAll ? "metrics?requests=all" : "metrics", {headers: headers()});
     if (r.status === 401) {
-      setPill("error", "API key needed");
-      if (!keyWarned) { keyWarned = true; toast("warn", "API key needed", "This server needs a key: add it under About > Settings.", 6000); }
+      setPill("error", "需要 API 密钥");
+      if (!keyWarned) { keyWarned = true; toast("warn", "需要 API 密钥", "服务端需要密钥：请在「关于 › 设置」里填写。", 6000); }
     } else if (r.ok) {
       lastMetrics = await r.json();
       metricsFailures = 0;
@@ -166,7 +167,7 @@ async function poll() {
       throw new Error(`HTTP ${r.status}`);
     }
   } catch (e) {
-    if (++metricsFailures === 3) setPill("error", "Server not reachable");
+    if (++metricsFailures === 3) setPill("error", "无法连接服务端");
   }
   if (tab === "monitor" && ++mcpTick % 10 === 0) loadMcp();       // server states change rarely: every 10 s
   setTimeout(poll, 1000);
@@ -183,13 +184,13 @@ function render(m) {
   // the header pill
   if (live.state === "reading") {
     const pct = live.prompt_total ? Math.round((100 * live.prompt_read) / live.prompt_total) : null;
-    setPill("reading", pct != null ? `Reading prompt · ${pct}%` : "Reading prompt");
+    setPill("reading", pct != null ? `读取提示词 · ${pct}%` : "读取提示词");
   } else if (live.state === "generating") {
-    setPill("generating", `Generating · ${fmt(live.tok_s, 1)} tok/s`);
+    setPill("generating", `生成中 · ${fmt(live.tok_s, 1)} tok/s`);
   } else {
-    setPill("idle", "Idle");
+    setPill("idle", "空闲");
   }
-  if (live.queued > 0) setPill("queued", `${live.queued} queued`);
+  if (live.queued > 0) setPill("queued", `${live.queued} 个排队`);
   if (tab === "monitor") renderMonitor(live, hw, st, eng, h, last, m.requests || [], m.totals, m.requests_kept);
   if (tab === "monitor") renderConvCache(m.conversation_cache);
   if (tab === "about") renderAbout(eng, hw, st);
@@ -200,7 +201,7 @@ function render(m) {
 function since(t) {
   if (!t) return "";
   const s = Math.max(0, Date.now() / 1000 - t);
-  return s < 60 ? "just now" : s < 3600 ? `${fmt(s / 60)} min ago` : `${fmt(s / 3600, 1)} h ago`;
+  return s < 60 ? "刚刚" : s < 3600 ? `${fmt(s / 60)} 分钟前` : `${fmt(s / 3600, 1)} 小时前`;
 }
 function renderConvCache(c) {
   $("cc-card").hidden = !c;
@@ -214,14 +215,14 @@ function renderConvCache(c) {
     $("cc-mem-text").textContent = `${gb(c.bytes)} / ${gb(budget)} GB`;
     $("cc-mem-bar").style.width = pct(c.bytes, budget);
   }
-  $("cc-sum").textContent = c.requests ? `${fmt(c.requests_reused)} of ${fmt(c.requests)} requests reused part of their prompt` : "";
-  const share = c.prompt_tokens ? ` (${fmt((100 * c.reused_tokens) / c.prompt_tokens)}% of all prompt tokens)` : "";
-  const event = c.last_event ? `${c.last_event === "parked" ? "Parked" : "Restored"} ${fmt(c.last_tokens)} tokens, ${since(c.last_at)}` : null;
+  $("cc-sum").textContent = c.requests ? `${fmt(c.requests_reused)} of ${fmt(c.requests)} 个请求复用了部分提示词` : "";
+  const share = c.prompt_tokens ? ` (${fmt((100 * c.reused_tokens) / c.prompt_tokens)}% 占全部提示词的` : "";
+  const event = c.last_event ? `${c.last_event === "parked" ? "停放" : "恢复"} ${fmt(c.last_tokens)} tokens, ${since(c.last_at)}` : null;
   facts($("cc-facts"), [
-    ["Last request", c.last_prompt != null ? `${fmt(c.last_reused || 0)} of ${fmt(c.last_prompt)} prompt tokens reused` : null],
-    ["Reused since start", c.requests ? `${fmt(c.reused_tokens)} tokens${share}` : null],
-    ["Parked / restored", c.enabled ? `${fmt(c.parks)} / ${fmt(c.restores)}${c.evictions ? ` · ${fmt(c.evictions)} evicted` : ""}` : null],
-    ["Last switch", c.enabled ? event : null],
+    ["上次请求", c.last_prompt != null ? `${fmt(c.last_reused || 0)} of ${fmt(c.last_prompt)} prompt tokens reused` : null],
+    ["启动以来复用", c.requests ? `${fmt(c.reused_tokens)} tokens${share}` : null],
+    ["停放 / 恢复", c.enabled ? `${fmt(c.parks)} / ${fmt(c.restores)}${c.evictions ? ` · ${fmt(c.evictions)} evicted` : ""}` : null],
+    ["上次切换", c.enabled ? event : null],
   ]);
   $("cc-note").textContent = c.enabled
     ? "A request that continues a parked conversation gets its state back instead of reading it again; the oldest goes when the slots or the memory are full."
@@ -242,9 +243,9 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   const on = live.queued > 0 ? "queued" : live.state;
   for (const b of document.querySelectorAll("#state-badges .st-badge")) b.classList.toggle("on", b.dataset.s === on || b.dataset.s === live.state);
   const prog = $("state-progress");
-  let label = "Waiting for a request", detail = "", pct = 0;
+  let label = "等待请求", detail = "", pct = 0;
   if (live.state === "reading") {
-    label = "Reading prompt";
+    label = "读取提示词";
     prog.dataset.tone = "info";
     if (live.prompt_total) {
       pct = (100 * live.prompt_read) / live.prompt_total;
@@ -253,7 +254,7 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
       detail = `${fmt(live.prompt_tokens)} tokens`;
     }
   } else if (live.state === "generating") {
-    label = live.phase ? live.phase[0].toUpperCase() + live.phase.slice(1) : "Generating";
+    label = live.phase ? live.phase[0].toUpperCase() + live.phase.slice(1) : "生成中";
     delete prog.dataset.tone;
     pct = live.max_tokens ? Math.min(100, (100 * live.generated) / live.max_tokens) : 0;
     detail = `${fmt(live.generated)} tokens · ${fmt(live.tok_s, 1)} tok/s`;
@@ -268,22 +269,23 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   // the eight cards
   const speed = live.state === "generating" ? live.tok_s : last ? last.decode_tok_s : null;
   setMetric("speed", speed == null ? null : fmt(speed, 1), "t/s",
-            live.state === "generating" ? "Decode now" : last ? "Decode last request" : "Decode");
+            live.state === "generating" ? "当前解码" : last ? "上次请求解码" : "解码");
   const prefill = live.state !== "idle" ? live.prefill_tok_s_mean
                 : last && last.prompt_ms > 0 ? Math.max(0, last.prompt_tokens - (last.reused || 0)) / (last.prompt_ms / 1000) : null;
   setMetric("prefill", prefill == null ? null : fmt(prefill), "t/s",
-            live.state === "reading" ? "Prefill now" : live.state === "generating" ? "Prefill this request" : last ? "Prefill last request" : "Prefill");
+            live.state === "reading" ? "当前预填充" : live.state === "generating" ? "本次预填充" : last ? "上次请求预填充" : "预填充");
   spark("sp-speed", h.tok_s);
   spark("sp-prefill", h.prefill_tok_s_mean);
   // a model split across several cards (issue #112): the cards show their total / mean / hottest, and each card's own
   const per = (f) => (hw.gpus || []).map((g) => `GPU ${g.index} ${f(g)}`).join(" · ");
   const multi = (hw.gpus || []).length > 1;
-  setMetric("gpu", hw.gpu_util == null ? null : fmt(hw.gpu_util), "%",
-            multi ? per((g) => (g.util == null ? "–" : `${fmt(g.util)}%`)) : st.gpu_name || (st.gpu_note ? "not available" : ""));
-  spark("sp-gpu", h.gpu_util, 100);
+  // GPU：只显示核心数（Apple Silicon 上利用率波动大，参考价值低）
+  setMetric("gpu", st.gpu_cores || null, "核", st.gpu_name || "");
+  // 内存：只显示总量
+  setMetric("ram", hw.ram_total ? gb(hw.ram_total, 0) : null, "GB", "统一内存");
   setMetric("vram", hw.gpu_mem_used == null ? null : gb(hw.gpu_mem_used), hw.gpu_mem_total ? `/ ${gb(hw.gpu_mem_total, 0)} GB` : "GB",
             multi ? per((g) => (g.mem_used == null ? "–" : `${gb(g.mem_used)} GB`))
-                  : eng.expert_slots ? `${fmt(eng.expert_slots)} experts cached` : (st.gpu_note ? "not available on Windows AMD yet" : ""));
+                  : eng.expert_slots ? `${fmt(eng.expert_slots)} 个专家已缓存` : (st.gpu_note ? "Windows AMD 上暂不可用" : ""));
   spark("sp-vram", h.gpu_mem_used, hw.gpu_mem_total);
   setMetric("temp", hw.gpu_temp == null ? null : fmt(hw.gpu_temp), "°C",
             multi ? per((g) => (g.temp == null ? "–" : `${fmt(g.temp)}°`)) : "");
@@ -298,7 +300,7 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   setMetric("cpu", hw.cpu == null ? null : fmt(hw.cpu), "%", st.threads ? `${st.cores ? `${st.cores} cores · ` : ""}${st.threads} threads` : "");
   spark("sp-cpu", h.cpu, 100);
   if (hw.disk_read_mb == null) {
-    setMetric("disk", null, "", st.psutil ? "" : "needs psutil (setup installs it)");
+    setMetric("disk", null, "", st.psutil ? "" : "需要 psutil（安装脚本会装）");
   } else {
     const big = hw.disk_read_mb >= 1000;
     setMetric("disk", big ? fmt(hw.disk_read_mb / 1024, 2) : fmt(hw.disk_read_mb, hw.disk_read_mb < 10 ? 1 : 0), big ? "GB/s" : "MB/s",
@@ -329,10 +331,10 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   // recent requests
   const body = $("req-body");
   if (!requests.length) {
-    body.innerHTML = `<tr><td colspan="9" class="muted">No requests yet</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" class="muted">暂无请求</td></tr>`;
   } else {
-    const badge = {stop: ["", "Done"], length: ["", "Max tokens"], cancel: ["st-badge--queued", "Stopped"],
-                   disconnect: ["st-badge--queued", "Closed"], error: ["st-badge--error", "Error"]};
+    const badge = {stop: ["", "完成"], length: ["", "最大 token"], cancel: ["st-badge--queued", "已停止"],
+                   disconnect: ["st-badge--queued", "已断开"], error: ["st-badge--error", "错误"]};
     body.innerHTML = requests.slice(0, reqShowAll ? requests.length : 12).map((r) => {
       const [cls, text] = badge[r.finish] || ["", r.finish || "–"];
       const t = new Date(r.time * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"});
@@ -351,7 +353,7 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   const all = $("req-all");
   kept = kept == null ? requests.length : kept;
   all.hidden = kept <= 12;
-  all.textContent = reqShowAll ? "Show fewer" : `Show all (${kept})`;
+  all.textContent = reqShowAll ? "收起" : `显示全部（${kept})`;
   $("req-wrap").classList.toggle("all", reqShowAll);
   $("req-totals").textContent = renderTotals(totals);
 }
@@ -365,32 +367,32 @@ function projectionText(c) {
   if (!c || c === "0" || c === 0) return null;
   const [mode, range, single] = String(c).split(":");
   const [a, b] = (range || "").split("-");
-  return `${mode === "project" ? "Projection" : "Additive"} control vector on layers ${a}–${b}` +
+  return `${mode === "project" ? "投影" : "叠加"} control vector on layers ${a}–${b}` +
          `${single ? ` (layer ${single.replace("single", "")}'s direction)` : ""}. Per chat in Sampling. Its package ` +
          "describes the vector as a refusal-direction projection; measure the speed yourself";
 }
 function renderAbout(eng, hw, st) {
   const kv = {int8: "8-bit", q4_0: "4-bit (Hadamard-rotated)", fp16: "16-bit"}[eng.kv] || eng.kv;
   facts($("facts-engine"), [
-    ["Model", eng.model],
-    ["Engine", eng.version ? `v${eng.version}` : "built from source"],
-    ["Context", eng.max_context ? `${fmt(eng.max_context)} tokens` : null],
-    ["KV cache", kv ? `${kv}${eng.kv_resident ? `, streamed: ${fmt(eng.kv_resident)} positions per layer in VRAM, the rest in RAM` : ", all in VRAM"}` : null],
-    ["Experts in VRAM", eng.expert_slots ? `${fmt(eng.expert_slots)} (${gb((eng.expert_cache_mib || 0) * 1048576)} GB)` : null],
-    ["Speculation", eng.spec ? `MTP drafts up to ${Math.max(0, (eng.mtp_max || eng.spec) - 1)} tokens${eng.lookup ? ", prompt lookup on" : ""}` : null],
-    ["Images", eng.images ? "on" : "off"],
-    ["Experimental speed projection", projectionText(eng.cvec)],
+    ["模型", eng.model],
+    ["引擎", eng.version ? `v${eng.version}` : "从源码编译"],
+    ["上下文", eng.max_context ? `${fmt(eng.max_context)} tokens` : null],
+    ["KV 缓存", kv ? `${kv}${eng.kv_resident ? `, streamed: ${fmt(eng.kv_resident)} positions per layer in VRAM, the rest in RAM` : ", all in VRAM"}` : null],
+    ["显存中的专家", eng.expert_slots ? `${fmt(eng.expert_slots)} (${gb((eng.expert_cache_mib || 0) * 1048576)} GB)` : null],
+    ["推测解码", eng.spec ? `MTP drafts up to ${Math.max(0, (eng.mtp_max || eng.spec) - 1)} tokens${eng.lookup ? ", prompt lookup on" : ""}` : null],
+    ["图片输入", eng.images ? "on" : "off"],
+    ["实验性速度投影", projectionText(eng.cvec)],
   ]);
   facts($("facts-hw"), [
     ["GPU", st.gpu_name ? `${st.gpu_name}${hw.gpu_mem_total ? `, ${gb(hw.gpu_mem_total, 0)} GB` : ""}` : (st.gpu_note || "not readable (NVML)")],
     ["CPU", st.cpu_name ? `${st.cpu_name}${st.threads ? `, ${st.threads} threads` : ""}` : null],
-    ["RAM", hw.ram_total ? `${gb(hw.ram_total, 0)} GB` : null],
+    ["内存", hw.ram_total ? `${gb(hw.ram_total, 0)} GB` : null],
   ]);
   const base = location.origin;
   facts($("facts-api"), [
-    ["OpenAI base URL", `${base}/v1`, true],
-    ["Anthropic base URL", base, true],
-    ["Model name", eng.model, true],
+    ["OpenAI 接口地址", `${base}/v1`, true],
+    ["Anthropic 接口地址", base, true],
+    ["模型名称", eng.model, true],
   ]);
 }
 document.addEventListener("click", (e) => {
@@ -413,16 +415,16 @@ async function loadMcp() {
   clearTimeout(mcpRetry);                          // right after the start, servers may still be starting (npx downloads)
   if ((mcpInfo.servers || []).some((s) => s.status === "starting")) mcpRetry = setTimeout(loadMcp, 3000);
 }
-const MCP_STATE = {ready: ["st-badge--generating", "Connected"], starting: ["st-badge--reading", "Starting"],
-                   failed: ["st-badge--error", "Failed"], stopped: ["st-badge--queued", "Stopped"], idle: ["", "Waiting"]};
+const MCP_STATE = {ready: ["st-badge--generating", "已连接"], starting: ["st-badge--reading", "启动中"],
+                   failed: ["st-badge--error", "失败"], stopped: ["st-badge--queued", "已停止"], idle: ["", "等待中"]};
 function renderMcp() {
   const servers = mcpInfo.servers || [];
   $("mcp-card").hidden = !servers.length;
   $("mcp-row").hidden = !servers.length;
   const ready = servers.filter((s) => s.status === "ready" || s.status === "stopped");
-  $("mcp-sum").textContent = servers.length ? `${fmt(mcpInfo.tools)} tools · ${ready.length} of ${servers.length} servers connected` : "";
-  $("mcp-row-sub").textContent = mcpInfo.tools ? `${fmt(mcpInfo.tools)} tools from ${ready.map((s) => s.name).join(", ")}; the model calls them when it decides to`
-                                               : "no server is connected yet (see the Monitor)";
+  $("mcp-sum").textContent = servers.length ? `${fmt(mcpInfo.tools)} tools · ${ready.length} of ${servers.length} 个服务器已连接` : "";
+  $("mcp-row-sub").textContent = mcpInfo.tools ? `${fmt(mcpInfo.tools)} 个工具，来自 ${ready.map((s) => s.name).join(", ")}；模型会自行决定何时调用`
+                                               : "还没有连接的服务器（见「监控」页）";
   $("mcp-list").innerHTML = servers.map((s) => {
     const [cls, text] = MCP_STATE[s.status] || ["", s.status];
     const info = s.info && s.info.name ? ` · ${s.info.name}${s.info.version ? ` ${s.info.version}` : ""}` : "";
@@ -456,7 +458,7 @@ async function loadConfig() {
     } else {
       const text = v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
       input = `<input class="st-input" id="${id}" ${k.kind === "number" ? 'type="number" step="any" min="0"' : 'type="text"'} ` +
-        `value="${esc(text)}" placeholder="default" autocomplete="off">`;
+        `value="${esc(text)}" placeholder="默认" autocomplete="off">`;
     }
     return `<label for="${id}" title="${esc(k.help)}">${esc(k.help)}<code>${esc(k.key)}</code></label>${input}`;
   }).join("");
@@ -476,17 +478,17 @@ $("cfg-save").addEventListener("click", async () => {
     const old = Array.isArray(k.value) ? k.value.join(", ") : k.value;
     if (JSON.stringify(v) !== JSON.stringify(old ?? null)) set[k.key] = v;
   });
-  if (!Object.keys(set).length) { $("cfg-msg").textContent = "Nothing changed."; return; }
+  if (!Object.keys(set).length) { $("cfg-msg").textContent = "没有变化。"; return; }
   try {
     const r = await fetch("config", {method: "POST", headers: headers(true), body: JSON.stringify({set})});
     const b = await r.json();
     if (!r.ok) throw new Error((b.error || {}).message || `HTTP ${r.status}`);
     $("cfg-msg").textContent = b.changed.length
-      ? `Saved (${b.changed.join(", ")}); the earlier file is ${b.file}.bak. Start the model again to use it.` : "Nothing changed.";
+      ? `已保存（${b.changed.join(", ")}）；原文件备份为 ${b.file}.bak。重启模型后生效。` : "没有变化。";
     loadConfig();
   } catch (e) {
     $("cfg-msg").textContent = "";
-    toast("error", "Not saved", String(e.message || e), 6000);
+    toast("error", "未保存", String(e.message || e), 6000);
   }
 });
 
@@ -502,7 +504,7 @@ function inline(s) {
 }
 function codeBlock(lang, code) {
   return `<div class="st-code"><div class="st-code__head"><span>${esc(lang || "code")}</span>` +
-    `<button class="st-btn st-btn--icon" data-code-copy aria-label="Copy code">${icon("copy")}</button></div>` +
+    `<button class="st-btn st-btn--icon" data-code-copy aria-label="复制代码">${icon("copy")}</button></div>` +
     `<pre><code>${esc(code)}</code></pre></div>`;
 }
 function blocks(text) {
@@ -607,24 +609,24 @@ function msgEl(m, i) {
     el.innerHTML = `<details class="st-collapse think" hidden><summary>${icon("thinking", "st-icon st-icon--sm")}<span class="think-title"></span>` +
       `${icon("chevron", "st-icon st-icon--sm st-chev")}</summary><div class="st-collapse__body thinking"></div></details>` +
       `<div class="st-bubble"></div><div class="st-msg__meta"><span class="meta-text"></span>` +
-      `<button class="st-btn st-btn--icon" data-msg-copy aria-label="Copy the answer" title="Copy">${icon("copy")}</button></div>`;
+      `<button class="st-btn st-btn--icon" data-msg-copy aria-label="复制回答" title="Copy">${icon("copy")}</button></div>`;
     updateAssistant(el, m, false);
   }
   return el;
 }
 // One MCP tool call in the answer: a compact block (name, state, a one-line preview) that opens to the arguments and
 // the result as the model read it.  Its body is built only while open: a result can be 20,000 characters.
-const TOOL_STATE = {writing: ["st-badge--reading", "Writing"], running: ["st-badge--generating", "Running"], done: ["", "Done"],
-                    error: ["st-badge--error", "Error"], skipped: ["st-badge--queued", "Not run"]};
+const TOOL_STATE = {writing: ["st-badge--reading", "生成中"], running: ["st-badge--generating", "Running"], done: ["", "完成"],
+                    error: ["st-badge--error", "错误"], skipped: ["st-badge--queued", "未运行"]};
 function toolHtml(t, k) {
   const [cls, label] = TOOL_STATE[t.state] || ["", t.state];
   const args = t.arguments == null ? "" : JSON.stringify(t.arguments, null, 2);
   const preview = t.result != null ? t.result : args.replace(/\s+/g, " ");
   let body = "";
   if (t.open) {
-    body = `<div class="tool-call__label">Arguments</div><pre class="tool-call__pre">${esc(args || "(being written)")}</pre>`;
+    body = `<div class="tool-call__label">参数</div><pre class="tool-call__pre">${esc(args || "(being written)")}</pre>`;
     if (t.result != null) {
-      body += `<div class="tool-call__label">${t.ok ? "Result" : "Error"}${t.chars ? ` · ${fmt(t.chars)} characters` : ""}` +
+      body += `<div class="tool-call__label">${t.ok ? "结果" : "错误"}${t.chars ? ` · ${fmt(t.chars)} characters` : ""}` +
               `${t.truncated ? ", cut for the model" : ""}</div><pre class="tool-call__pre">${esc(t.result)}</pre>`;
     }
   }
@@ -684,7 +686,7 @@ function updateAssistant(el, m, streaming) {
     bubble.innerHTML = answerHtml(m);
     if (streaming) bubble.classList.add("cursor"); else bubble.classList.remove("cursor");
   }
-  el.querySelector(".meta-text").textContent = m.meta || (streaming ? "" : m.stopped ? "Stopped" : "");
+  el.querySelector(".meta-text").textContent = m.meta || (streaming ? "" : m.stopped ? "已停止" : "");
   el.querySelector("[data-msg-copy]").hidden = streaming || !m.text;
 }
 function renderChat() {
@@ -765,7 +767,7 @@ function assistantMessages(m) {
 function setBusy(on) {
   $("stop-btn").hidden = !on;
   $("send-btn").disabled = on;
-  $("composer-hint").textContent = on ? "" : "Shift+Enter: new line";
+  $("composer-hint").textContent = on ? "" : "Shift+Enter：换行";
 }
 
 async function send() {
@@ -805,7 +807,7 @@ async function send() {
     if (!r.ok) {
       let msg = `HTTP ${r.status}`;
       try { msg = (await r.json()).error.message || msg; } catch (e) { /* not json */ }
-      if (r.status === 401) msg = "This server needs an API key: add it under About > Settings.";
+      if (r.status === 401) msg = "服务端需要 API 密钥：请在「关于 › 设置」里填写。";
       throw new Error(msg);
     }
     const reader = r.body.getReader(), dec = new TextDecoder();
@@ -823,7 +825,7 @@ async function send() {
         if (data === "[DONE]") continue;
         let j;
         try { j = JSON.parse(data); } catch (e) { continue; }
-        if (j.error) throw new Error(j.error.message || "the engine reported an error");
+        if (j.error) throw new Error(j.error.message || "引擎报错");
         if (j.usage) usage = j.usage;
         if (j.strata_mcp) onTool(m, j.strata_mcp);
         const d = (j.choices && j.choices[0] && j.choices[0].delta) || {};
@@ -845,7 +847,7 @@ async function send() {
     }
   } catch (e) {
     if (e.name === "AbortError") m.stopped = true;
-    else { m.error = e.message || String(e); toast("error", "The request failed", m.error, 6000); }
+    else { m.error = e.message || String(e); toast("error", "请求失败", m.error, 6000); }
   }
   if (thinkStart && m.thinkSecs == null) m.thinkSecs = (performance.now() - thinkStart) / 1000;
   const n = usage ? usage.completion_tokens : null;
@@ -854,7 +856,7 @@ async function send() {
     m.meta = `${fmt(n)} tokens${secs > 0.25 ? ` · ${fmt(n / secs, 1)} tok/s` : ""}${m.stopped ? " · stopped" : ""}` +
              (projectionLoaded() ? (settings.esp ? " · projection on" : " · projection off") : "");
   } else if (m.stopped) {
-    m.meta = "Stopped";
+    m.meta = "已停止";
   }
   for (const t of m.tools || []) if (t.state === "writing" || t.state === "running") { t.state = "skipped"; t.ms = null; }
   const ran = (m.tools || []).filter((t) => t.state === "done" || t.state === "error").length;
@@ -877,16 +879,16 @@ function autosize() { const t = $("input"); t.style.height = "auto"; t.style.hei
 $("input").addEventListener("input", autosize);
 
 $("new-btn").onclick = () => {
-  if (busy) { toast("warn", "Still writing", "Stop the answer first."); return; }
+  if (busy) { toast("warn", "仍在生成", "请先停止当前回答。"); return; }
   if (!messages.length) return;
   const backup = messages;
   messages = [];
   saveChat();
   renderChat();
-  toast("info", "New chat", "The last one was cleared.", 6000, {label: "Undo", run: () => { messages = backup; saveChat(); renderChat(); }});
+  toast("info", "新对话", "上一个已清空。", 6000, {label: "Undo", run: () => { messages = backup; saveChat(); renderChat(); }});
 };
 $("export-btn").onclick = () => {
-  if (!messages.length) { toast("info", "Nothing to save yet"); return; }
+  if (!messages.length) { toast("info", "还没有可保存的内容"); return; }
   const tools = (m) => (m.tools || []).filter((t) => t.result != null).map((t) =>
     `<details><summary>Tool ${t.server ? `${t.server} / ` : ""}${t.tool || t.name}${t.ok ? "" : " (error)"}</summary>\n\n` +
     `\`\`\`json\n${JSON.stringify(t.arguments || {}, null, 2)}\n\`\`\`\n\n\`\`\`\n${t.result}\n\`\`\`\n\n</details>\n\n`).join("");
@@ -909,19 +911,19 @@ function isTextFile(f) {
 function addFiles(files) {
   for (const f of files) {
     if (f.type.startsWith("image/")) {
-      if (!health.images) { toast("warn", "Pictures are off", "This model was set up for text only."); continue; }
-      if (f.size > 20e6) { toast("warn", "Picture too large", `${f.name} is over 20 MB.`); continue; }
+      if (!health.images) { toast("warn", "图片功能已关闭", "这个模型只配置了文本输入。"); continue; }
+      if (f.size > 20e6) { toast("warn", "图片过大", `${f.name} is over 20 MB.`); continue; }
       const r = new FileReader();
       r.onload = () => { attachments.push({kind: "image", name: f.name || "pasted image", url: r.result}); renderAttachments(); };
       r.readAsDataURL(f);
       continue;
     }
-    if (!isTextFile(f)) { toast("warn", "Not a text file", `${f.name}: attach text files (code, notes, logs, data)${health.images ? " or pictures" : ""}.`); continue; }
-    if (f.size > MAX_TEXT_FILE) { toast("warn", "File too large", `${f.name} is over 512 KB.`); continue; }
+    if (!isTextFile(f)) { toast("warn", "不是文本文件", `${f.name}: attach text files (code, notes, logs, data)${health.images ? " or pictures" : ""}.`); continue; }
+    if (f.size > MAX_TEXT_FILE) { toast("warn", "文件过大", `${f.name} is over 512 KB.`); continue; }
     const r = new FileReader();
     r.onload = () => {
       const text = String(r.result);
-      if (text.includes("\u0000")) { toast("warn", "Not a text file", `${f.name} looks like a binary file.`); return; }
+      if (text.includes("\u0000")) { toast("warn", "不是文本文件", `${f.name} looks like a binary file.`); return; }
       attachments.push({kind: "file", name: f.name, text});
       renderAttachments();
     };
@@ -998,7 +1000,7 @@ function loadDrawer(s = settings) {
   $("s-share").setAttribute("aria-checked", String(sharedOn));
   outputs();
 }
-// "Use for other apps too": the server keeps these settings as every client's defaults (GET/POST /settings)
+// "同时供其它应用使用": the server keeps these settings as every client's defaults (GET/POST /settings)
 let sharedOn = false;
 async function loadShared() {
   try {
@@ -1032,11 +1034,11 @@ function projectionLoaded() {
 }
 function outputs() {
   const t = +$("s-temp").value;
-  $("o-temp").textContent = t === 0 ? "0 · greedy" : t.toFixed(2);
+  $("o-temp").textContent = t === 0 ? "0 · 贪心" : t.toFixed(2);
   $("o-topp").textContent = (+$("s-topp").value).toFixed(2);
   $("o-topk").textContent = $("s-topk").value;
   const sel = [...$("s-thinking").children].find((b) => b.getAttribute("aria-checked") === "true");
-  $("o-thinking").textContent = sel ? {none: "answers right away", low: "short", medium: "medium", high: "thorough (default)"}[sel.dataset.v] : "";
+  $("o-thinking").textContent = sel ? {none: "立即给出答案", low: "short", medium: "medium", high: "thorough (default)"}[sel.dataset.v] : "";
   for (const id of ["s-topp", "s-topk"]) $(id).disabled = t === 0;
 }
 for (const b of $("s-thinking").children) b.onclick = () => { for (const x of $("s-thinking").children) x.setAttribute("aria-checked", String(x === b)); outputs(); };
@@ -1059,14 +1061,14 @@ $("s-apply").onclick = async () => {
   if (share || sharedOn) {
     try {
       await saveShared(share, settings);
-      toast("success", "Sampling saved", share ? "Other apps (omp, API clients) use these settings from their next request."
-                                               : "Other apps use their own settings again.");
+      toast("success", "采样设置已保存", share ? "其它应用（omp、API 客户端）从下次请求起使用这些设置。"
+                                               : "其它应用恢复使用自己的设置。");
     } catch (e) {
-      toast("error", "Saved here, but not for other apps", e.message, 6000);
+      toast("error", "已保存到本页，但未应用到其它应用", e.message, 6000);
     }
     return;
   }
-  toast("success", "Sampling saved", settings.temperature === 0 ? "Greedy: the same question gives the same answer." : "");
+  toast("success", "采样设置已保存", settings.temperature === 0 ? "贪心：同样的问题给出同样的答案。" : "");
 };
 $("sampling-btn").onclick = () => openDrawer(true);
 $("drawer-close").onclick = () => openDrawer(false);

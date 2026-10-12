@@ -91,15 +91,22 @@
 
 ## 界面
 
-浏览器打开 <http://127.0.0.1:8791> 就是 Strata 的原生 UI，三个标签页：
+浏览器打开 <http://127.0.0.1:8791> 就是 Strata 的原生 UI（**已汉化**），三个标签页：
 
 | 页 | 内容 |
 |---|---|
-| **Chat** | 对话、附件、Markdown 渲染、思考链折叠；采样抽屉可调思考等级（Off / Low / Medium / High，映射 `reasoning_effort`）、temperature、top-p、top-k、seed、max tokens |
-| **Monitor** | 实时状态（读取中 / 生成中 / 排队）、8 个指标卡带 sparkline、上下文占用圆环、请求表格（含缓存命中率、prefill / decode 速度）、MCP 服务器列表 |
-| **About** | 模型与引擎信息、硬件信息、API 地址（可直接复制给其它客户端）、API key、模型参数 |
+| **对话** | 对话、附件、Markdown 渲染、思考链折叠；采样抽屉可调思考等级（关闭 / 低 / 中 / 高，映射 `reasoning_effort`）、temperature、top-p、top-k、seed、max tokens |
+| **监控** | 实时状态（读取中 / 生成中 / 排队）、三张指标卡（速度 / GPU 核心数 / 内存总量）、上下文占用圆环、请求表格（含缓存命中率、prefill / decode 速度）、MCP 服务器列表 |
+| **关于** | 模型与引擎信息、硬件信息、API 地址（可直接复制给其它客户端）、API key、模型参数 |
 
 明暗主题可切换，设置存在浏览器本地。
+
+**指标卡为什么只有三张**：Apple Silicon 是统一内存，显存和内存本来就是同一块；
+GPU 温度、功耗、PCIe 在 macOS 上需要 `sudo powermetrics` 或根本不适用，
+显示成 `–` 只是噪音。所以只保留了真正有信息量的三项。
+
+> 上游 Strata 还有一张独立的 `web/monitor.html`（API 监控页），它依赖 Strata 自己的
+> `/api/requests` 端点，本项目未实现——该页可以打开但拿不到数据。
 
 ### 数据来源
 

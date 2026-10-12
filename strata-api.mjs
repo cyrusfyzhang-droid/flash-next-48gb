@@ -143,22 +143,35 @@ async function sysctl(key) {
 let _static = null;
 export async function staticInfo() {
   if (_static) return _static;
-  const [brand, phys, logical, chip] = await Promise.all([
+  const [brand, phys, logical, chip, gpuCores] = await Promise.all([
     sysctl('machdep.cpu.brand_string'),
     sysctl('hw.physicalcpu'),
     sysctl('hw.logicalcpu'),
     sysctl('hw.model'),
+    gpuCoreCount(),
   ]);
   _static = {
     cpu_name: brand || os.cpus()[0]?.model || 'Unknown',
     cores: phys ? Number(phys) : os.cpus().length,
     threads: logical ? Number(logical) : os.cpus().length,
     gpu_name: brand ? `${brand} GPU` : null,
+    gpu_cores: gpuCores,          // 界面上的「40 核 GPU」
     gpu_note: 'unified memory — no separate VRAM',
     psutil: true,
     model_id: chip,
   };
   return _static;
+}
+
+/** GPU 核心数：system_profiler 较慢（数秒），只在 staticInfo 里跑一次并缓存 */
+async function gpuCoreCount() {
+  try {
+    const { stdout } = await run('system_profiler', ['SPDisplaysDataType'], { timeout: 15000 });
+    const m = stdout.match(/Total Number of Cores:\s*(\d+)/);
+    return m ? Number(m[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 /* ══════════════════ 请求记录 ══════════════════ */

@@ -22,15 +22,15 @@
   <span class="st-header__brand">Strata</span>
   <nav class="st-tabs" role="tablist" aria-label="Views">
     <button class="st-tab" role="tab" id="tab-btn-chat" aria-controls="view-chat" aria-selected="true" data-tab="chat">
-      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-chat"/></svg>Chat</button>
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-chat"/></svg>对话</button>
     <button class="st-tab" role="tab" id="tab-btn-monitor" aria-controls="view-monitor" aria-selected="false" data-tab="monitor">
-      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-activity"/></svg>Monitor</button>
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-activity"/></svg>监控</button>
     <button class="st-tab" role="tab" id="tab-btn-about" aria-controls="view-about" aria-selected="false" data-tab="about">
-      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>About</button>
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>关于</button>
   </nav>
   <span class="st-header__spacer"></span>
   <span class="st-pill" id="pill" data-state="idle" role="status" aria-live="polite">
-    <span class="st-pill__dot"></span><span id="pill-text">Connecting&hellip;</span></span>
+    <span class="st-pill__dot"></span><span id="pill-text">连接中…</span></span>
   <button class="st-btn st-btn--icon" id="theme-btn" title="Light / dark" aria-label="Switch between light and dark">
     <svg class="st-icon"><use id="theme-icon" href="web/sprite.svg#i-moon"/></svg></button>
 </header>
@@ -41,8 +41,8 @@
     <div class="chat-scroll" id="chat-scroll">
       <div class="chat" id="chat">
         <div class="chat-empty" id="chat-empty">
-          <div class="chat-empty__title">Ask anything</div>
-          <div class="chat-empty__sub" id="chat-empty-sub">The model runs on this PC. Nothing leaves it.</div>
+          <div class="chat-empty__title">问点什么</div>
+          <div class="chat-empty__sub" id="chat-empty-sub">模型跑在这台机器上，数据不出本机。</div>
         </div>
       </div>
     </div>
@@ -63,7 +63,7 @@
           <span class="spacer"></span>
           <span class="composer-hint" id="composer-hint"></span>
           <button type="button" class="st-btn st-btn--secondary" id="stop-btn" hidden>
-            <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-stop"/></svg>Stop</button>
+            <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-stop"/></svg>停止</button>
           <button type="submit" class="st-btn st-btn--primary st-btn--send" id="send-btn" aria-label="Send">
             <svg class="st-icon"><use href="web/sprite.svg#i-send"/></svg></button>
         </div>
@@ -76,16 +76,16 @@
     <div class="monitor">
       <div class="st-card state-card">
         <div class="state-card__head">
-          <span class="card-title">Model state</span>
+          <span class="card-title">模型状态</span>
           <span class="badges" id="state-badges">
-            <span class="st-badge" data-s="idle">Idle</span>
-            <span class="st-badge st-badge--reading" data-s="reading">Reading</span>
-            <span class="st-badge st-badge--generating" data-s="generating">Generating</span>
-            <span class="st-badge st-badge--queued" data-s="queued">Queued</span>
-            <span class="st-badge st-badge--error" data-s="error">Error</span>
+            <span class="st-badge" data-s="idle">空闲</span>
+            <span class="st-badge st-badge--reading" data-s="reading">读取中</span>
+            <span class="st-badge st-badge--generating" data-s="generating">生成中</span>
+            <span class="st-badge st-badge--queued" data-s="queued">排队</span>
+            <span class="st-badge st-badge--error" data-s="error">错误</span>
           </span>
         </div>
-        <div class="state-card__row"><span id="state-label">Waiting for a request</span><span class="muted" id="state-detail"></span></div>
+        <div class="state-card__row"><span id="state-label">等待请求</span><span class="muted" id="state-detail"></span></div>
         <div class="st-progress" id="state-progress"><div class="st-progress__bar" id="state-bar" style="width:0%"></div></div>
       </div>
 
@@ -95,7 +95,7 @@
 
       <div class="monitor-row">
         <div class="st-card ctx-card">
-          <span class="card-title">Context fill</span>
+          <span class="card-title">上下文占用</span>
           <div class="ctx-gauge">
             <svg class="st-gauge" viewBox="0 0 120 120" aria-hidden="true">
               <circle class="st-gauge__track" cx="60" cy="60" r="50" fill="none" stroke-width="10" stroke-linecap="round"
@@ -105,21 +105,21 @@
             </svg>
             <div class="ctx-gauge__label"><span class="ctx-gauge__pct" id="ctx-pct">0%</span><span class="muted" id="ctx-sub">&ndash;</span></div>
           </div>
-          <div class="bar-row"><span>Experts in VRAM</span><span class="muted" id="slots-text">&ndash;</span></div>
+          <div class="bar-row"><span>显存中的专家</span><span class="muted" id="slots-text">&ndash;</span></div>
           <div class="st-progress"><div class="st-progress__bar" id="slots-bar" style="width:0%"></div></div>
-          <div class="bar-row"><span>System RAM</span><span class="muted" id="ram-text">&ndash;</span></div>
+          <div class="bar-row"><span>系统内存</span><span class="muted" id="ram-text">&ndash;</span></div>
           <div class="st-progress" id="ram-progress"><div class="st-progress__bar" id="ram-bar" style="width:0%"></div></div>
-          <div class="bar-row"><span>GPU temperature</span><span class="muted" id="temp-text">&ndash;</span></div>
+          <div class="bar-row"><span>GPU 温度</span><span class="muted" id="temp-text">&ndash;</span></div>
           <div class="st-progress" data-tone="warn"><div class="st-progress__bar" id="temp-bar" style="width:0%"></div></div>
         </div>
         <div class="st-card req-card">
-          <div class="req-head"><span class="card-title">Recent requests</span>
-            <button class="st-btn st-btn--secondary" id="req-all" hidden>Show all</button></div>
+          <div class="req-head"><span class="card-title">最近请求</span>
+            <button class="st-btn st-btn--secondary" id="req-all" hidden>显示全部</button></div>
           <div class="table-wrap" id="req-wrap">
             <table class="st-table">
-              <thead><tr><th>Time</th><th>Status</th><th class="num">Prompt</th><th class="num">Reused</th><th class="num">Output</th>
-                <th class="num" title="New prompt tokens per second, excluding reused cache tokens (engine prompt time)">Prefill t/s</th><th class="num">Decode t/s</th><th class="num" title="While writing the answer: the share of the experts looked up that were already in VRAM. Experts the GPU read over PCIe (--pcie-frac) are not counted in it; their share of all routed experts is shown after it (+N% PCIe)">VRAM hit rate</th><th class="num">Duration</th></tr></thead>
-              <tbody id="req-body"><tr><td colspan="9" class="muted">No requests yet</td></tr></tbody>
+              <thead><tr><th>时间</th><th>状态</th><th class="num">提示词</th><th class="num">复用</th><th class="num">输出</th>
+                <th class="num" title="New prompt tokens per second, excluding reused cache tokens (engine prompt time)">预填充 t/s</th><th class="num">解码 t/s</th><th class="num" title="While writing the answer: the share of the experts looked up that were already in VRAM. Experts the GPU read over PCIe (--pcie-frac) are not counted in it; their share of all routed experts is shown after it (+N% PCIe)">显存命中率</th><th class="num">耗时</th></tr></thead>
+              <tbody id="req-body"><tr><td colspan="9" class="muted">暂无请求</td></tr></tbody>
             </table>
           </div>
           <p class="muted req-totals" id="req-totals"></p>
@@ -127,11 +127,11 @@
       </div>
 
       <div class="st-card cc-card" id="cc-card">
-        <div class="req-head"><span class="card-title">Conversation cache</span><span class="muted small" id="cc-sum"></span></div>
+        <div class="req-head"><span class="card-title">对话缓存</span><span class="muted small" id="cc-sum"></span></div>
         <div class="cc-bars" id="cc-bars" hidden>
-          <div><div class="bar-row"><span>Parked conversations</span><span class="muted" id="cc-slots-text">&ndash;</span></div>
+          <div><div class="bar-row"><span>停放的对话</span><span class="muted" id="cc-slots-text">&ndash;</span></div>
             <div class="st-progress"><div class="st-progress__bar" id="cc-slots-bar" style="width:0%"></div></div></div>
-          <div><div class="bar-row"><span>Their memory (RAM)</span><span class="muted" id="cc-mem-text">&ndash;</span></div>
+          <div><div class="bar-row"><span>它们占用的内存</span><span class="muted" id="cc-mem-text">&ndash;</span></div>
             <div class="st-progress"><div class="st-progress__bar" id="cc-mem-bar" style="width:0%"></div></div></div>
         </div>
         <dl class="facts" id="cc-facts"></dl>
@@ -139,10 +139,9 @@
       </div>
 
       <div class="st-card mcp-card" id="mcp-card" hidden>
-        <div class="req-head"><span class="card-title">MCP servers</span><span class="muted small" id="mcp-sum"></span></div>
+        <div class="req-head"><span class="card-title">MCP 服务器</span><span class="muted small" id="mcp-sum"></span></div>
         <div class="mcp-list" id="mcp-list"></div>
-        <p class="muted small mcp-note">Their tools run on this PC with your rights, when the model decides to call them
-          (in this page's chat only; switch it off in Sampling).</p>
+        <p class="muted small mcp-note">这些工具会在本机以你的权限运行，由模型决定何时调用（仅限本页对话；可在「采样」里关闭）。</p>
       </div>
     </div>
   </section>
@@ -151,35 +150,33 @@
   <section class="view view--about" id="view-about" role="tabpanel" aria-labelledby="tab-btn-about" hidden>
     <div class="about">
       <div class="st-card">
-        <span class="card-title">Model and engine</span>
+        <span class="card-title">模型与引擎</span>
         <dl class="facts" id="facts-engine"></dl>
       </div>
       <div class="st-card">
-        <span class="card-title">This PC</span>
+        <span class="card-title">本机</span>
         <dl class="facts" id="facts-hw"></dl>
       </div>
       <div class="st-card">
-        <span class="card-title">Connect your tools</span>
-        <p class="muted">Any OpenAI- or Anthropic-compatible client works with these addresses.</p>
+        <span class="card-title">接入你的工具</span>
+        <p class="muted">任何兼容 OpenAI 或 Anthropic 的客户端都可以用这些地址。</p>
         <dl class="facts" id="facts-api"></dl>
       </div>
       <div class="st-card">
-        <span class="card-title">Settings</span>
+        <span class="card-title">设置</span>
         <div class="st-field">
-          <label class="st-label" for="api-key">API key <output>only if the server was started with one</output></label>
+          <label class="st-label" for="api-key">API 密钥<output>仅当服务端设置了密钥时</output></label>
           <input class="st-input" id="api-key" type="password" autocomplete="off" placeholder="Not needed">
         </div>
-        <div class="toggle-row"><span>Dark theme</span>
+        <div class="toggle-row"><span>深色主题</span>
           <button class="st-toggle" id="dark-toggle" role="switch" aria-checked="false" aria-label="Dark theme"></button></div>
-        <p class="muted small">Chats, settings and the key are kept in this browser only.
-          <a href="https://github.com/Niko1221/Strata" target="_blank" rel="noopener noreferrer">Strata on GitHub</a></p>
+        <p class="muted small">对话、设置和密钥只保存在这个浏览器里。<a href="https://github.com/Niko1221/Strata" target="_blank" rel="noopener noreferrer">GitHub 上的 Strata</a></p>
       </div>
       <div class="st-card cfg-card" id="cfg-card" hidden>
-        <div class="req-head"><span class="card-title">Model settings</span><span class="muted small" id="cfg-file"></span></div>
-        <p class="muted small">Kept in the model's run config for every client. An empty field is the default. They
-          take effect the next time the model starts (close Strata's window and start it again).</p>
+        <div class="req-head"><span class="card-title">模型设置</span><span class="muted small" id="cfg-file"></span></div>
+        <p class="muted small">保存在模型的运行配置里，对所有客户端生效。留空表示用默认值。下次启动模型时生效（关闭再重新启动服务）。</p>
         <form class="cfg-form" id="cfg-form"></form>
-        <div class="cfg-actions"><button class="st-btn st-btn--primary" id="cfg-save" type="button">Save</button>
+        <div class="cfg-actions"><button class="st-btn st-btn--primary" id="cfg-save" type="button">保存</button>
           <span class="muted small" id="cfg-msg" role="status"></span></div>
       </div>
     </div>
@@ -188,21 +185,21 @@
 
 <!-- ============================ Sampling drawer ============================ -->
 <aside class="st-drawer" id="drawer" data-open="false" aria-label="Sampling and thinking" aria-hidden="true">
-  <div class="st-drawer__head"><span class="card-title">Sampling</span>
+  <div class="st-drawer__head"><span class="card-title">采样</span>
     <button class="st-btn st-btn--icon" id="drawer-close" aria-label="Close">
       <svg class="st-icon"><use href="web/sprite.svg#i-chevron"/></svg></button></div>
   <div class="st-drawer__body">
     <div class="st-field">
-      <label class="st-label" for="s-thinking">Thinking <output id="o-thinking"></output></label>
+      <label class="st-label" for="s-thinking">思考<output id="o-thinking"></output></label>
       <div class="seg" id="s-thinking" role="radiogroup" aria-label="Thinking">
-        <button type="button" role="radio" data-v="none">Off</button><button type="button" role="radio" data-v="low">Low</button>
-        <button type="button" role="radio" data-v="medium">Medium</button><button type="button" role="radio" data-v="high">High</button>
+        <button type="button" role="radio" data-v="none">关闭</button><button type="button" role="radio" data-v="low">低</button>
+        <button type="button" role="radio" data-v="medium">中</button><button type="button" role="radio" data-v="high">高</button>
       </div>
     </div>
     <div class="st-field">
-      <label class="st-label" for="s-temp">Temperature <output id="o-temp"></output></label>
+      <label class="st-label" for="s-temp">温度<output id="o-temp"></output></label>
       <input class="st-slider" type="range" id="s-temp" min="0" max="1.5" step="0.05">
-      <span class="muted small">0 = always the most likely word (exact, repeatable)</span>
+      <span class="muted small">0 = 总是选最可能的词（精确、可复现）</span>
     </div>
     <div class="st-field">
       <label class="st-label" for="s-topp">Top-p <output id="o-topp"></output></label>
@@ -213,27 +210,25 @@
       <input class="st-slider" type="range" id="s-topk" min="1" max="64" step="1">
     </div>
     <div class="st-field">
-      <label class="st-label" for="s-max">Max tokens <output>empty = until done</output></label>
+      <label class="st-label" for="s-max">最大 token 数<output>留空 = 直到结束</output></label>
       <input class="st-input" id="s-max" type="number" min="1" step="1" placeholder="Until done">
     </div>
     <div class="st-field">
-      <label class="st-label" for="s-seed">Seed <output>empty = random</output></label>
+      <label class="st-label" for="s-seed">随机种子<output>留空 = 随机</output></label>
       <input class="st-input" id="s-seed" type="number" min="1" step="1" placeholder="Random">
     </div>
-    <div class="toggle-row"><span>Show thinking<br><span class="muted small">expanded while it streams</span></span>
+    <div class="toggle-row"><span>显示思考过程<br><span class="muted small">流式输出时展开</span></span>
       <button class="st-toggle" id="s-show" role="switch" aria-checked="true" aria-label="Show thinking"></button></div>
-    <div class="toggle-row" id="mcp-row" hidden><span>Use tools from MCP servers<br><span class="muted small"
-      id="mcp-row-sub">the model may call them while it answers</span></span>
+    <div class="toggle-row" id="mcp-row" hidden><span>使用 MCP 服务器的工具<br><span class="muted small"
+      id="mcp-row-sub">模型回答时可能调用它们</span></span>
       <button class="st-toggle" id="s-mcp" role="switch" aria-checked="true" aria-label="Use tools from MCP servers"></button></div>
-    <div class="toggle-row" id="esp-row" hidden><span>Experimental speed projection<br><span class="muted small">the
-      engine's control vector; off = the stock model. Switching reads the chat again once</span></span>
+    <div class="toggle-row" id="esp-row" hidden><span>实验性速度投影<br><span class="muted small">引擎的控制向量；关闭 = 原版模型。切换会重新读一次对话</span></span>
       <button class="st-toggle" id="s-esp" role="switch" aria-checked="true" aria-label="Experimental speed projection"></button></div>
-    <div class="toggle-row"><span>Use for other apps too<br><span class="muted small">omp and other API clients get
-      these settings for anything they don't set themselves</span></span>
+    <div class="toggle-row"><span>同时供其它应用使用<br><span class="muted small">其它 API 客户端在未自行指定时，会使用这些设置</span></span>
       <button class="st-toggle" id="s-share" role="switch" aria-checked="false" aria-label="Use for other apps too"></button></div>
     <div class="drawer-actions">
-      <button class="st-btn st-btn--secondary" id="s-reset" type="button">Reset</button>
-      <button class="st-btn st-btn--primary" id="s-apply" type="button">Apply</button>
+      <button class="st-btn st-btn--secondary" id="s-reset" type="button">重置</button>
+      <button class="st-btn st-btn--primary" id="s-apply" type="button">应用</button>
     </div>
   </div>
 </aside>
