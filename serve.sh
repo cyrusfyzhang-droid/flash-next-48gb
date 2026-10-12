@@ -117,6 +117,7 @@ fi
 : "${NP:=1}"
 : "${KV_TYPE:=q4_0}"
 : "${BATCH:=4096}"
+: "${UBATCH:=1024}"
 : "${FA:=1}"
 : "${LAZY:=1}"
 : "${JINJA:=1}"
@@ -140,7 +141,7 @@ nohup ./llama-server \
   -m "$MODEL" $MM_ARG \
   -ngl "$NGL" -c "$CTX" -np "$NP" \
   $LAZY_ARG $JINJA_ARG $FA_ARG \
-  -b "$BATCH" -ub 1024 \
+  -b "$BATCH" -ub "$UBATCH" \
   $KV_ARG \
   --metrics \
   --host 127.0.0.1 --port "$SERVE_PORT" \

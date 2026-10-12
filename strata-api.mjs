@@ -189,37 +189,165 @@ export const reqLog = {
   },
 };
 
-/**
- * 记录一次完成的请求。由 server.mjs 的代理层在响应结束时调用。
- * @param {{promptTokens:number, reused:number, outputTokens:number, promptMs:number,
- *          decodeMs:number, finish:string, tps:number, projection:boolean}} r
- */
-export function recordRequest(r) {
-  const t = reqLog.totals;
-  t.requests += 1;
-  t.prompt_tokens += r.promptTokens || 0;
-  t.reused += r.reused || 0;
-  t.prompt_ms += r.promptMs || 0;
-  t.output_tokens += r.outputTokens || 0;
-  t.decode_ms += r.decodeMs || 0;
+const CAPTURE = 262144;                      // 单字段最多保留 256K 字符（与前端提示一致）
+const ACTIVE_STATES = ['queued', 'loading', 'generating'];
+let _seq = 0;
 
+const clip = (s) => {
+  const str = typeof s === 'string' ? s : '';
+  return str.length > CAPTURE ? { text: str.slice(0, CAPTURE), truncated: true } : { text: str, truncated: false };
+};
+
+/**
+ * 请求开始：建一条记录（state=queued）。字段同时喂两套前端：
+ *   - 主 UI（app.js「最近请求」表）：time / finish / prompt_tokens / reused / decode_tok_s / ...
+ *   - 独立监控页（monitor.html）：id / path / state / started_at / usage / timings / input / output / ...
+ * 由 server.mjs 的代理层在收到请求时调用。
+ */
+export function beginRequest(info = {}) {
+  const now = Date.now();
+  const input = clip(info.input || '');
   const entry = {
-    time: Math.floor(Date.now() / 1000),
-    status: 'ok',
-    finish: r.finish || 'stop',
-    prompt_tokens: r.promptTokens || 0,
-    reused: r.reused || 0,
-    output_tokens: r.outputTokens || 0,
-    prompt_ms: r.promptMs || 0,
-    decode_tok_s: r.tps || (r.decodeMs > 0 ? (r.outputTokens || 0) / (r.decodeMs / 1000) : 0),
-    hit_rate: r.promptTokens ? Math.min(1, (r.reused || 0) / r.promptTokens) : null,
-    pcie_share: null,
-    duration_s: ((r.promptMs || 0) + (r.decodeMs || 0)) / 1000,
-    projection: r.projection || null,
+    id: `r${++_seq}`,
+    path: info.path || '/v1/chat/completions',
+    model: info.model || null,
+    stream: !!info.stream,
+    state: 'queued',
+    started_at: now / 1000,
+    wallclock_s: null,
+    http_status: null,
+    queue_s: null,
+    first_token_s: null,
+    load_s: null,
+    response_format: info.responseFormat || 'text',
+    input: input.text,
+    input_truncated: input.truncated,
+    output: '',
+    output_truncated: false,
+    reasoning: '',
+    reasoning_truncated: false,
+    response: null,
+    response_truncated: false,
+    usage: null,
+    timings: null,
+    error: null,
+
+    // 主 UI 表格的列
+    time: Math.floor(now / 1000),
+    status: 'active',
+    finish: null,
+    prompt_tokens: 0, reused: 0, output_tokens: 0,
+    prompt_ms: 0, decode_tok_s: 0, duration_s: 0,
+    hit_rate: null, pcie_share: null, projection: null,
+
+    _t0: now,
   };
   reqLog.list.unshift(entry);
   if (reqLog.list.length > reqLog.kept) reqLog.list.length = reqLog.kept;
   return entry;
+}
+
+/** 模型加载中的占位记录：monitor.html 靠 state==='loading' 显示「Loading…」并锁住按钮 */
+export function beginLoad(label) {
+  const rec = beginRequest({ path: '(load model)', model: label || null });
+  rec.state = 'loading';
+  return rec;
+}
+
+/** 首个数据帧到达：queued → generating，记下排队耗时 */
+export function markFirstByte(entry) {
+  if (!entry || entry.state !== 'queued') return;
+  entry.state = 'generating';
+  entry.queue_s = Math.max(0, Date.now() / 1000 - entry.started_at);
+}
+
+/** 请求结束。patch: { usage, timings, finish, output, reasoning, response, httpStatus, error } */
+export function finishRequest(entry, patch = {}) {
+  if (!entry) return entry;
+  const now = Date.now();
+  const usage = patch.usage || null;
+  const timings = patch.timings || null;
+
+  // llama.cpp 的流式响应不带 usage，但 timings 里有全部信息：
+  //   cache_n 复用的前缀 token   prompt_n 新处理的   prompt_ms / predicted_ms 两阶段耗时
+  const cached = usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n ?? 0;
+  const fresh = timings?.prompt_n ?? 0;
+  const promptTokens = usage?.prompt_tokens ?? (fresh + cached);
+  const outputTokens = usage?.completion_tokens ?? timings?.predicted_n ?? 0;
+  const promptMs = timings?.prompt_ms || 0;
+  const decodeMs = timings?.predicted_ms || 0;
+  const tps = timings?.predicted_per_second || 0;
+
+  entry.wallclock_s = (now - entry._t0) / 1000;
+  if (patch.httpStatus != null) entry.http_status = patch.httpStatus;
+  if (usage || timings) entry.usage = { prompt_tokens: promptTokens, completion_tokens: outputTokens };
+  if (timings) entry.timings = { predicted_per_second: tps };
+  if (promptMs) {
+    entry.load_s = promptMs / 1000;
+    entry.first_token_s = (entry.queue_s ?? 0) + promptMs / 1000;
+  }
+  if (patch.finish) entry.finish = patch.finish;
+  if (patch.output != null) { const c = clip(patch.output); entry.output = c.text; entry.output_truncated = c.truncated; }
+  if (patch.reasoning != null) { const c = clip(patch.reasoning); entry.reasoning = c.text; entry.reasoning_truncated = c.truncated; }
+  if (patch.response != null) { const c = clip(patch.response); entry.response = c.text; entry.response_truncated = c.truncated; }
+
+  // 主 UI 表格的统计列
+  if (promptTokens) entry.prompt_tokens = promptTokens;
+  entry.reused = cached;
+  entry.output_tokens = outputTokens;
+  entry.prompt_ms = promptMs;
+  entry.decode_tok_s = tps || (decodeMs > 0 ? outputTokens / (decodeMs / 1000) : 0);
+  entry.hit_rate = promptTokens ? Math.min(1, cached / promptTokens) : null;
+  entry.duration_s = (promptMs + decodeMs) / 1000;
+
+  if (patch.error) {
+    entry.state = 'error';
+    entry.status = 'error';
+    entry.finish = entry.finish || 'error';
+    entry.error = { message: String(patch.error.message || patch.error) };
+  } else {
+    entry.state = 'completed';
+    entry.status = 'ok';
+    entry.finish = entry.finish || 'stop';
+  }
+
+  const t = reqLog.totals;
+  t.requests += 1;
+  t.prompt_tokens += promptTokens;
+  t.reused += cached;
+  t.prompt_ms += promptMs;
+  t.output_tokens += outputTokens;
+  t.decode_ms += decodeMs;
+  return entry;
+}
+
+/** 客户端中途断开（回答被停止 / 网络断） */
+export function finishDisconnect(entry) {
+  if (!entry || !ACTIVE_STATES.includes(entry.state)) return;
+  entry.state = 'disconnected';
+  entry.finish = 'disconnect';
+  entry.wallclock_s = Math.max(0, Date.now() / 1000 - entry.started_at);
+}
+
+/** 模型加载失败：把占位记录标记成 error，错误详情留给人看 */
+export function finishLoadFail(entry, message) {
+  if (!entry) return;
+  entry.state = 'error';
+  entry.status = 'error';
+  entry.finish = 'error';
+  entry.error = { message: String(message) };
+  entry.wallclock_s = Math.max(0, Date.now() / 1000 - entry.started_at);
+}
+
+/** 从列表里移除一条记录（加载成功后清掉占位记录） */
+export function removeRequest(entry) {
+  const i = reqLog.list.indexOf(entry);
+  if (i >= 0) reqLog.list.splice(i, 1);
+}
+
+/** 按 id 查一条记录（monitor.html 的详情面板） */
+export function requestById(id) {
+  return reqLog.list.find((r) => r.id === id) || null;
 }
 
 /* ══════════════════ llama-server 数据获取 ══════════════════ */
@@ -267,6 +395,15 @@ let _lastPromptTokens = 0;
 // 并不实时累加（实测请求结束才一次性更新），所以拿它算差值恒为 0。
 let _lastGen = { n: 0, at: 0 };
 
+// 主 UI 每秒轮询一次 /metrics：请求表只给需要的列，剔掉 input/output 全文（可能几百 KB）
+const slimRequest = (r) => ({
+  time: r.time, status: r.status, finish: r.finish,
+  prompt_tokens: r.prompt_tokens, reused: r.reused, output_tokens: r.output_tokens,
+  prompt_ms: r.prompt_ms, decode_tok_s: r.decode_tok_s, hit_rate: r.hit_rate,
+  pcie_share: r.pcie_share, duration_s: r.duration_s, projection: r.projection,
+  id: r.id, state: r.state, model: r.model, started_at: r.started_at,
+});
+
 export async function metrics(port, opts = {}) {
   const st = await staticInfo();
 
@@ -288,7 +425,7 @@ export async function metrics(port, opts = {}) {
               expert_slots: null, expert_cache_mib: null, spec: null, mtp_max: null,
               lookup: false, images: false, cvec: 0 },
     history: {},
-    requests: reqLog.list.slice(0, opts.all ? reqLog.list.length : 12),
+    requests: reqLog.list.slice(0, opts.all ? reqLog.list.length : 12).map(slimRequest),
     totals: reqLog.totals,
     requests_kept: reqLog.kept,
     conversation_cache: null,

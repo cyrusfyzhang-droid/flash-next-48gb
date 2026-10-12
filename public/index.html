@@ -87,6 +87,13 @@
         </div>
         <div class="state-card__row"><span id="state-label">等待请求</span><span class="muted" id="state-detail"></span></div>
         <div class="st-progress" id="state-progress"><div class="st-progress__bar" id="state-bar" style="width:0%"></div></div>
+        <div class="state-card__row model-ctl">
+          <span id="model-name" class="muted">模型：检查中…</span>
+          <span style="display:inline-flex;gap:8px">
+            <button type="button" class="st-btn st-btn--secondary" id="model-load" style="height:32px;padding:0 14px;font-size:13px">加载模型</button>
+            <button type="button" class="st-btn st-btn--secondary" id="model-unload" style="height:32px;padding:0 14px;font-size:13px">卸载模型</button>
+          </span>
+        </div>
       </div>
 
       <div class="metrics" id="metrics">

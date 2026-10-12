@@ -206,6 +206,86 @@ function stopServer() {
   return { ok: true };
 }
 
+/** 状态接口 /v1/status 用：模型名缓存（不必每秒都去查 /props） */
+let _modelCache = { at: 0, name: null };
+async function buildStatus() {
+  const probe = await probeServer(state.servePort);
+  let model = _modelCache.name;
+  if (probe.up && Date.now() - _modelCache.at > 5000) {
+    try {
+      const h = await strata.health(state.servePort);
+      model = h.model || model;
+      _modelCache = { at: Date.now(), name: model };
+    } catch { /* 拿不到就沿用缓存 */ }
+  }
+  return {
+    model: model || 'llama.cpp',
+    loaded: probe.up,
+    loading: !!state.loading,
+    activity: {
+      in_flight: strata.reqLog.list.filter((r) => ['queued', 'loading', 'generating'].includes(r.state)).length,
+    },
+    auto_load: false,
+  };
+}
+
+/**
+ * 加载模型：交给 serve.sh（模型发现、启动参数、mmproj 都维护在它里面，
+ * 与手动 `./serve.sh` 完全同一条路径）。
+ */
+function startLoadFlow() {
+  state.loading = true;
+  const rec = strata.beginLoad(null);
+  appendLog('[加载] 执行 serve.sh …');
+  const child = spawn('/bin/sh', [path.join(__dirname, 'serve.sh')], {
+    cwd: __dirname,
+    env: { ...process.env, SERVE_PORT: String(state.servePort) },
+  });
+  const relay = (d) => appendLog(d.toString());
+  child.stdout.on('data', relay);
+  child.stderr.on('data', relay);
+  child.on('error', (e) => {
+    state.loading = false;
+    strata.finishLoadFail(rec, `serve.sh 启动失败：${e.message}`);
+    appendLog(`[加载] serve.sh 启动失败：${e.message}`);
+  });
+  child.on('close', (code) => {
+    state.loading = false;
+    if (code === 0) {
+      appendLog('[加载] 模型已就绪 ✓');
+      strata.removeRequest(rec);      // 占位记录撤掉，避免一直算 "in flight"
+    } else {
+      appendLog(`[加载] 失败（exit=${code}），看 logs/serve.log`);
+      strata.finishLoadFail(rec, '加载失败：详见 logs/serve.log（控制台日志同步有记录）');
+    }
+  });
+}
+
+/** 停 llama-server：托管进程走 state.proc，否则按监听端口找（serve.sh 启动的情况） */
+function stopServerAny() {
+  let killed = false;
+  if (state.proc) {
+    const p = state.proc;
+    state.proc = null;
+    p.kill('SIGTERM');
+    setTimeout(() => { try { p.kill('SIGKILL'); } catch {} }, 5000);
+    appendLog('已发送停止信号（托管进程）');
+    killed = true;
+  }
+  try {
+    const pids = execFileSync('lsof', ['-ti', `tcp:${state.servePort}`, '-sTCP:LISTEN'], { encoding: 'utf8', timeout: 3000 })
+      .trim().split('\n').filter(Boolean);
+    for (const pid of pids) {
+      try {
+        process.kill(Number(pid), 'SIGTERM');
+        killed = true;
+        appendLog(`已停止 llama-server（pid ${pid}）`);
+      } catch { /* 进程已退出 */ }
+    }
+  } catch { /* 端口上没有进程 */ }
+  return killed ? { ok: true } : { ok: false, error: { message: 'llama-server 不在运行' } };
+}
+
 function serveStatic(req, res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   const target = path.join(PUBLIC_DIR, rel);
@@ -264,22 +344,37 @@ function injectEffort(body) {
 }
 
 /**
- * 统计嗅探器：把 llama-server 的响应原样透传，同时提取 usage（token 数、缓存命中）
- * 和 timings（prefill / decode 耗时），供 Strata UI 的 Monitor 请求表格使用。
- * 流式（SSE）取最后一帧，非流式取整个 JSON。
+ * 统计嗅探器：把 llama-server 的响应原样透传，同时提取：
+ *   - usage / timings（token 数、缓存命中、两阶段耗时）→ 请求表格与统计
+ *   - 输出正文（content / reasoning_content）与原始响应 → 监控页的详情面板
+ * 流式（SSE）逐帧累积，非流式取整个 JSON。
  */
-function makeStatsSniffer() {
+function makeStatsSniffer(rec) {
   let buf = '';
   let usage = null, timings = null, finish = null;
+  let output = '', reasoning = '', response = '', frames = 0, marked = false, streamError = null;
+
+  const mark = () => { if (!marked) { marked = true; strata.markFirstByte(rec); } };
 
   const absorb = (payload) => {
     if (!payload || payload === '[DONE]') return;
+    frames += 1;
     try {
       const j = JSON.parse(payload);
+      // 流式请求的错误走 HTTP 200 + 流内 error 帧（llama-server 的行为），这里单独捕获
+      if (j.error) { streamError = (j.error && j.error.message) || String(j.error); return; }
       if (j.usage) usage = j.usage;
       if (j.timings) timings = j.timings;
-      const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
-      if (fr) finish = fr;
+      const c0 = j.choices && j.choices[0];
+      if (c0) {
+        if (c0.finish_reason) finish = c0.finish_reason;
+        const d = c0.delta || c0.message || {};
+        if (d.content) { output += d.content; mark(); }
+        if (d.reasoning_content) { reasoning += d.reasoning_content; mark(); }
+      }
+      // 原始响应：非流式留全文；流式太长，留个提示
+      if (frames <= 2) response += payload + '\n';
+      else if (frames === 3) response = '(流式响应，正文见输出面板)';
     } catch { /* 不完整的一帧，忽略 */ }
   };
 
@@ -295,8 +390,8 @@ function makeStatsSniffer() {
       cb(null, chunk);
     },
     flush(cb) {
-      if (!usage && !timings) absorb(buf.trim());   // 非流式：整体就是一个 JSON
-      this.emit('stats', { usage, timings, finish });
+      if (!frames) absorb(buf.trim());   // 非流式：整体就是一个 JSON，没走过 data: 分支
+      this.emit('stats', { usage, timings, finish, output, reasoning, response, error: streamError });
       cb();
     },
   });
@@ -326,8 +421,8 @@ function kvType() {
   return val;
 }
 
-/** 通用转发到 llama-server（支持 /v1/* 任意路径，含流式） */
-function proxyAny(req, res, pathname, query, body) {
+/** 通用转发到 llama-server（支持 /v1/* 任意路径，含流式）。rec = 请求记录（可为 null） */
+function proxyAny(req, res, pathname, query, body, rec) {
   const headers = {};
   if (body !== null) {
     headers['Content-Type'] = 'application/json';
@@ -342,7 +437,10 @@ function proxyAny(req, res, pathname, query, body) {
         // 把上游的错误响应也记下来
         let errBuf = '';
         r.on('data', (c) => { errBuf += c; });
-        r.on('end', () => appendLog(`[err ${code}] ${errBuf.slice(0, 800)}`));
+        r.on('end', () => {
+          appendLog(`[err ${code}] ${errBuf.slice(0, 800)}`);
+          strata.finishRequest(rec, { error: errBuf.slice(0, 500) || `HTTP ${code}`, httpStatus: code });
+        });
       }
       res.writeHead(code, {
         'Content-Type': r.headers['content-type'] || 'application/json; charset=utf-8',
@@ -350,23 +448,14 @@ function proxyAny(req, res, pathname, query, body) {
         'X-Accel-Buffering': 'no',
       });
       if (code < 400 && pathname.includes('chat/completions')) {
-        // 边转发边提取 usage / timings，喂给 Strata UI 的请求表格
-        const sniffer = makeStatsSniffer();
-        sniffer.on('stats', ({ usage, timings, finish }) => {
-          if (!usage && !timings) return;
-          // llama.cpp 的流式响应不带 usage，但 timings 里有全部信息：
-          //   cache_n  复用的前缀 token    prompt_n  新处理的
-          //   prompt_ms / predicted_ms   两阶段耗时
-          const cached = usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n ?? 0;
-          const fresh = timings?.prompt_n ?? 0;
-          strata.recordRequest({
-            promptTokens: usage?.prompt_tokens ?? (fresh + cached),
-            reused: cached,
-            outputTokens: usage?.completion_tokens ?? timings?.predicted_n ?? 0,
-            promptMs: timings?.prompt_ms || 0,
-            decodeMs: timings?.predicted_ms || 0,
-            tps: timings?.predicted_per_second || 0,
+        // 边转发边提取 usage / timings / 输出文本，喂给请求表格与监控页
+        const sniffer = makeStatsSniffer(rec);
+        sniffer.on('stats', ({ usage, timings, finish, output, reasoning, response, error }) => {
+          strata.finishRequest(rec, {
+            usage, timings, httpStatus: code,
             finish: finish === 'length' ? 'length' : 'stop',
+            output, reasoning, response,
+            error: error || undefined,   // 流内错误帧：标成 error 记录
           });
         });
         r.pipe(sniffer).pipe(res);
@@ -376,8 +465,13 @@ function proxyAny(req, res, pathname, query, body) {
     }
   );
   upstream.on('error', (e) => {
+    strata.finishRequest(rec, { error: `无法连接 llama-server：${e.message}` });
     if (!res.headersSent) sendJson(res, 502, { error: `无法连接 llama-server：${e.message}` });
     else res.end();
+  });
+  // 客户端中途断开（点了停止 / 网络断）：别让记录卡在 generating
+  res.on('close', () => {
+    if (rec && !res.writableEnded) strata.finishDisconnect(rec);
   });
   if (body !== null) upstream.write(body);
   upstream.end();
@@ -451,6 +545,37 @@ const server = http.createServer(async (req, res) => {
         if (b.defaults.reasoning_effort) state.reasoningEffort = b.defaults.reasoning_effort;
       }
       sendJson(res, 200, { shared: !!state.sharedDefaults });
+      return;
+    }
+    // ── 模型加载 / 卸载（monitor.html 的「加载模型」「卸载模型」按钮）──
+    if (p === '/v1/status' && req.method === 'GET') {
+      sendJson(res, 200, await buildStatus());
+      return;
+    }
+    if (p === '/api/requests' && req.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (id) {
+        const one = strata.requestById(id);
+        if (!one) { sendJson(res, 404, { error: { message: `没有请求 ${id}` } }); return; }
+        sendJson(res, 200, one);
+        return;
+      }
+      const up = (await probeServer(state.servePort)).up;
+      sendJson(res, 200, { requests: strata.reqLog.list, loaded: up, auto_load: false });
+      return;
+    }
+    if (p === '/load' && req.method === 'POST') {
+      if (state.loading) { sendJson(res, 409, { ok: false, error: { message: '模型正在加载中，请稍候…' } }); return; }
+      if ((await probeServer(state.servePort)).up) { sendJson(res, 409, { ok: false, error: { message: '模型已经加载' } }); return; }
+      startLoadFlow();
+      sendJson(res, 200, { ok: true, note: '正在加载，就绪后即可对话' });
+      return;
+    }
+    if (p === '/unload' && req.method === 'POST') {
+      if (state.loading) { sendJson(res, 409, { ok: false, error: { message: '模型正在加载中，稍后再试' } }); return; }
+      if (!(await probeServer(state.servePort)).up) { sendJson(res, 409, { ok: false, error: { message: '模型未加载' } }); return; }
+      const out = stopServerAny();
+      sendJson(res, out.ok ? 200 : 409, out);
       return;
     }
     // 旧控制台（模型选择 / 服务启停 / 参数调节）保留在 /console
@@ -604,6 +729,7 @@ const server = http.createServer(async (req, res) => {
     // /v1/* 透传（供 Cherry Studio 等客户端直连控制台，自动注入 reasoning_effort）
     if (p.startsWith('/v1/')) {
       let body = null;
+      let rec = null;
       if (req.method === 'POST' || req.method === 'PUT') {
         body = await readBody(req);
         if (p.includes('chat/completions')) {
@@ -615,13 +741,21 @@ const server = http.createServer(async (req, res) => {
             const firstUser = (j.messages || []).find(m => m.role === 'user');
             const fu = firstUser ? String(typeof firstUser.content === 'string' ? firstUser.content : JSON.stringify(firstUser.content)).slice(0, 40).replace(/\n/g, ' ') : '-';
             appendLog(`[req] ${p} msgs=[${msgs}](${(j.messages||[]).length}条) model=${j.model || '-'} stream=${j.stream} tools=${(j.tools || []).length} max_tokens=${j.max_tokens ?? '-'} 首条用户消息="${fu}"`);
+            // 建请求记录：主 UI 的请求表 + 独立监控页都吃这条数据
+            rec = strata.beginRequest({
+              path: p,
+              model: j.model,
+              stream: !!j.stream,
+              responseFormat: (j.response_format && j.response_format.type) || 'text',
+              input: body,
+            });
           } catch {
             appendLog(`[req] ${p} (非 JSON，${body.length} 字节)`);
           }
           body = injectEffort(body);
         }
       }
-      proxyAny(req, res, p, url.search, body);
+      proxyAny(req, res, p, url.search, body, rec);
       return;
     }
 

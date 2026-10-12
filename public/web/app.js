@@ -78,7 +78,7 @@ function showTab(name) {
   for (const v of ["chat", "monitor", "about"]) $(`view-${v}`).hidden = v !== tab;
   if (location.hash.slice(1) !== tab) history.replaceState(null, "", tab === "chat" ? location.pathname : `#${tab}`);
   if (tab === "chat") $("input").focus();
-  if (tab === "monitor") loadMcp();
+  if (tab === "monitor") { loadMcp(); refreshModelCtl(); }
   if (tab === "about") loadConfig();
   if (lastMetrics) render(lastMetrics);
 }
@@ -153,6 +153,44 @@ function setMetric(key, value, unit, sub) {
 
 let lastMetrics = null, metricsFailures = 0, keyWarned = false, mcpTick = 0;
 let reqShowAll = false;   // the Monitor's request table: the last 12, or every one the server keeps (issue #35)
+
+// ---------------------------------------------------- 模型加载 / 卸载
+// 状态来自控制台 /v1/status（llama-server 是否在跑）。加载走 serve.sh：首次约 10–60 秒。
+let modelCtl = { loaded: null, loading: false, busy: false, model: null, tick: 0 };
+async function refreshModelCtl() {
+  const b = $("model-load"), u = $("model-unload"), n = $("model-name");
+  if (!b) return;                                   // 页面没有这组控件
+  try {
+    const s = await (await fetch("v1/status", {headers: headers()})).json();
+    modelCtl.loaded = !!s.loaded;
+    modelCtl.loading = !!s.loading;
+    modelCtl.model = s.model || null;
+  } catch (e) { /* 控制台暂时无响应：保持旧状态 */ }
+  b.disabled = modelCtl.busy || modelCtl.loading || modelCtl.loaded === true;
+  u.disabled = modelCtl.busy || modelCtl.loading || modelCtl.loaded !== true;
+  b.textContent = modelCtl.loading ? "加载中…" : "加载模型";
+  n.textContent = modelCtl.loading ? "模型加载中…（首次约 10–60 秒）"
+    : modelCtl.loaded === null ? "模型：状态未知"
+    : modelCtl.loaded ? `模型：${modelCtl.model || "已加载"}` : "模型：未加载";
+}
+async function modelAction(action) {
+  if (modelCtl.busy) return;
+  modelCtl.busy = true; refreshModelCtl();
+  try {
+    const r = await fetch(action, {method: "POST", headers: headers(true), body: "{}"});
+    let v = {};
+    try { v = await r.json(); } catch (e) { /* 空响应 */ }
+    if (!r.ok) throw new Error((v.error && v.error.message) || `HTTP ${r.status}`);
+    if (action === "load") { modelCtl.loading = true; toast("info", "正在加载模型", "llama-server 就绪后即可对话（首次约 10–60 秒）。"); }
+    else toast("info", "正在卸载模型", "完成前请勿发起对话。");
+  } catch (e) {
+    toast("error", action === "load" ? "加载失败" : "卸载失败", String(e.message || e), 7000);
+  }
+  modelCtl.busy = false;
+  setTimeout(refreshModelCtl, 1000);
+}
+$("model-load").onclick = () => modelAction("load");
+$("model-unload").onclick = () => modelAction("unload");
 async function poll() {
   try {
     const r = await fetch(reqShowAll ? "metrics?requests=all" : "metrics", {headers: headers()});
@@ -170,6 +208,7 @@ async function poll() {
     if (++metricsFailures === 3) setPill("error", "无法连接服务端");
   }
   if (tab === "monitor" && ++mcpTick % 10 === 0) loadMcp();       // server states change rarely: every 10 s
+  if (tab === "monitor" && ++modelCtl.tick % 3 === 0) refreshModelCtl();
   setTimeout(poll, 1000);
 }
 
@@ -808,6 +847,7 @@ async function send() {
       let msg = `HTTP ${r.status}`;
       try { msg = (await r.json()).error.message || msg; } catch (e) { /* not json */ }
       if (r.status === 401) msg = "服务端需要 API 密钥：请在「关于 › 设置」里填写。";
+      if (r.status === 502 || r.status === 503) msg = "模型未加载或服务未启动：请到「监控」页点「加载模型」。";
       throw new Error(msg);
     }
     const reader = r.body.getReader(), dec = new TextDecoder();
