@@ -191,6 +191,15 @@ async function modelAction(action) {
 }
 $("model-load").onclick = () => modelAction("load");
 $("model-unload").onclick = () => modelAction("unload");
+// 「退出服务」：停止模型 + 关闭控制台（内存全部释放）。想再用时双击 Strata Mac.app。
+$("model-quit").onclick = async () => {
+  if (!confirm("退出后会停止模型并关闭控制台（内存全部释放）。\n想再用时，双击「Strata Mac.app」即可。\n\n确定退出？")) return;
+  const bye = document.createElement("div");
+  bye.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font:15px/1.6 system-ui;color:#8b8b8b;background:#101012;z-index:9999";
+  bye.innerHTML = `<div style="font-size:20px;color:#e8e8e8">服务已退出</div><div>模型内存已释放。双击 <b>Strata Mac.app</b> 可再次启动。</div>`;
+  document.body.append(bye);
+  try { await fetch("api/quit", {method: "POST", headers: headers(true), body: "{}"}); } catch (e) { /* 服务已在关闭，连接被断开是预期行为 */ }
+};
 async function poll() {
   try {
     const r = await fetch(reqShowAll ? "metrics?requests=all" : "metrics", {headers: headers()});

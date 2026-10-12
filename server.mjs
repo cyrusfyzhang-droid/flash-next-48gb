@@ -291,7 +291,11 @@ function serveStatic(req, res, pathname) {
   const target = path.join(PUBLIC_DIR, rel);
   if (!target.startsWith(PUBLIC_DIR)) { sendJson(res, 403, { error: 'forbidden' }); return; }
   fs.readFile(target, (err, data) => {
-    if (err) { sendJson(res, 404, { error: 'not found' }); return; }
+    if (err) {
+      appendLog(`[static] 读取失败 ${target} → ${err.code || err.message}`);
+      sendJson(res, 404, { error: 'not found' });
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(target)] || 'application/octet-stream',
       'Cache-Control': 'no-store',
@@ -576,6 +580,17 @@ const server = http.createServer(async (req, res) => {
       if (!(await probeServer(state.servePort)).up) { sendJson(res, 409, { ok: false, error: { message: '模型未加载' } }); return; }
       const out = stopServerAny();
       sendJson(res, out.ok ? 200 : 409, out);
+      return;
+    }
+    // 「退出服务」：停 llama-server（释放内存）→ 控制台自身退出。
+    // 没有自启守护——想再用时双击 /Applications/Strata Mac.app 即可。
+    if (p === '/api/quit' && req.method === 'POST') {
+      sendJson(res, 200, { ok: true, note: '服务即将退出' });
+      appendLog('[退出] 收到退出请求：停止 llama-server 并关闭控制台');
+      setTimeout(() => {
+        try { stopServerAny(); } catch { /* llama-server 可能没在跑 */ }
+        setTimeout(() => process.exit(0), 1000);
+      }, 300);
       return;
     }
     // 旧控制台（模型选择 / 服务启停 / 参数调节）保留在 /console
