@@ -8,6 +8,9 @@ run/
 # 本机配置覆盖（含个人路径，绝不入库）
 config.local.sh
 
+# 控制台界面保存的运行参数（每台机器不同）
+runconfig.json
+
 # macOS
 .DS_Store
 ._*

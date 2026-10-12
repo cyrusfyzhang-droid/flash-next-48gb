@@ -26,13 +26,27 @@
 
 ## 与 Strata 的关系
 
-**本项目不是 [Strata](https://github.com/Niko1221/Strata) 的 fork，也没有使用它的任何代码。**
+**本项目不是 [Strata](https://github.com/Niko1221/Strata) 的 fork —— 两者的引擎完全不同：**
 
-Strata 是 CUDA / ROCm 方向的 Windows / Linux 项目（其 README 明确只支持
-Windows / Linux + NVIDIA / AMD 显卡）。本项目受它启发 —— 与其把模型压到 4-bit
-再硬塞进内存，不如选更激进的低比特量化（2–3 bpw），让整个模型真正装得下。
+| | Strata | 本项目 |
+|---|---|---|
+| 推理引擎 | 自研 C++ / CUDA | llama.cpp + Metal |
+| 平台 | Windows / Linux + NVIDIA / AMD 独显 | macOS + Apple Silicon 统一内存 |
+| 量化 | 自研 GSQ-RCO 打包 | 现成的 GGUF |
 
-真正的上游依赖只有 [llama.cpp](https://github.com/ggml-org/llama.cpp)（MIT）。
+**但界面用的是 Strata 的前端。** `public/web/` 下的 Chat / Monitor / About 三页
+（`app.js`、`app.css`、`components.css`、`tokens.css`、`sprite.svg`、`monitor.*`、`favicon.svg`）
+**逐字节取自** Strata 仓库的 `serve/web/`，遵循其 MIT 许可 —— 见
+[`public/web/LICENSE-strata`](public/web/LICENSE-strata)。字体 Outfit 为 SIL OFL 1.1。
+
+原版那套前端对接的是 Strata 自己的 Python 服务端。本项目写了适配层
+（`strata-api.mjs`），把 llama-server 和 macOS 的数据组装成它期望的格式，
+于是同一套界面可以跑在 llama.cpp 之上。
+
+思路上的启发也来自 Strata：与其把模型压到 4-bit 再硬塞进内存，
+不如选更激进的低比特量化（2–3 bpw），让整个模型真正装得下。
+
+引擎依赖只有 [llama.cpp](https://github.com/ggml-org/llama.cpp)（MIT）。
 
 ---
 
@@ -72,6 +86,50 @@ Windows / Linux + NVIDIA / AMD 显卡）。本项目受它启发 —— 与其�
 | **纯内存缓存** | 不落盘、不占 SSD；进程重启即清空，只服务当前会话 |
 
 零第三方依赖 —— 只用 Node 内置模块。
+
+---
+
+## 界面
+
+浏览器打开 <http://127.0.0.1:8791> 就是 Strata 的原生 UI，三个标签页：
+
+| 页 | 内容 |
+|---|---|
+| **Chat** | 对话、附件、Markdown 渲染、思考链折叠；采样抽屉可调思考等级（Off / Low / Medium / High，映射 `reasoning_effort`）、temperature、top-p、top-k、seed、max tokens |
+| **Monitor** | 实时状态（读取中 / 生成中 / 排队）、8 个指标卡带 sparkline、上下文占用圆环、请求表格（含缓存命中率、prefill / decode 速度）、MCP 服务器列表 |
+| **About** | 模型与引擎信息、硬件信息、API 地址（可直接复制给其它客户端）、API key、模型参数 |
+
+明暗主题可切换，设置存在浏览器本地。
+
+### 数据来源
+
+这套界面原本对接 Strata 的 Python 服务端。本项目实现了它需要的 6 个端点：
+
+| 端点 | 数据来源 |
+|---|---|
+| `POST /v1/chat/completions` | llama-server 原生（代理层注入 `cache_prompt` / `reasoning_effort` / `repeat_penalty`） |
+| `GET /health` | llama-server `/props` |
+| `GET /metrics` | llama-server `/slots` + `/metrics` + macOS 系统指标 |
+| `GET /mcp` | `~/.workbuddy-ai/mcp.json`（只列出，不代管进程） |
+| `GET/POST /config` | `runconfig.json`（`serve.sh` 启动时读取） |
+| `GET/POST /settings` | 控制台内存态 |
+
+**macOS 上的硬件指标来源**（均在 Apple Silicon 上实测）：
+
+| 指标 | 来源 | 状态 |
+|---|---|---|
+| GPU 利用率 / 显存 | `ioreg -c IOAccelerator` 的 `Device Utilization %` / `In use system memory` | ✅ |
+| 内存 | `vm_stat`（可用 = free + inactive + speculative） | ✅ |
+| CPU | `os.cpus()` 两次采样的差值 | ✅ |
+| 磁盘吞吐 | `iostat` | ✅ |
+| GPU 温度 / 功耗 | 需 `sudo powermetrics` | ❌ 显示 `–` |
+| PCIe 带宽 | Apple Silicon 统一内存，无此概念 | ❌ 显示 `–` |
+
+采样在后台每 1.5 秒刷新一次并缓存，请求路径零阻塞（`iostat` 单次要 1 秒）。
+
+### 旧控制台
+
+模型选择、服务启停、参数调节仍在 <http://127.0.0.1:8791/console>。
 
 ---
 
@@ -247,17 +305,21 @@ KV cache (q4_0 @ 65536)   3.0 GB
 ```
 flash-next-48gb/
 ├── server.mjs               控制台后端（零依赖）
+├── strata-api.mjs           Strata UI 适配层（把 llama-server 数据组装成界面期望的格式）
 ├── mcp-server.mjs           MCP 服务器
-├── public/index.html        前端界面
+├── public/
+│   ├── index.html           Strata UI 入口
+│   ├── console.html         旧控制台（模型选择 / 启停 / 调参）
+│   └── web/                 Strata 前端（取自上游，MIT，见 LICENSE-strata）
 ├── env.sh                   环境变量（通用默认值）
 ├── config.local.sh.example  本机配置模板
 ├── start.sh / stop.sh       启停控制台
-├── serve.sh                 单独启停 llama-server
+├── serve.sh                 单独启停 llama-server（会读 runconfig.json）
 ├── run-console.sh           前台运行（调试用）
 └── assets/                  图标
 ```
 
-运行时产物（`logs/`、`run/`、`config.local.sh`）均在 `.gitignore` 中。
+运行时产物（`logs/`、`run/`、`config.local.sh`、`runconfig.json`）均在 `.gitignore` 中。
 
 ---
 
@@ -275,10 +337,17 @@ flash-next-48gb/
 
 ## 许可
 
-MIT —— 见 [LICENSE](LICENSE)。
+本项目自己的代码：MIT —— 见 [LICENSE](LICENSE)。
+
+**前端界面（`public/web/`）取自 [Strata](https://github.com/Niko1221/Strata)，
+Copyright (c) 2026 Niko1221 and the Strata contributors，同样为 MIT。**
+完整许可见 [`public/web/LICENSE-strata`](public/web/LICENSE-strata)。
+
+Outfit 字体为 SIL Open Font License 1.1（见 `public/web/fonts/OFL.txt`）。
 
 ## 致谢
 
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) —— 推理引擎与 Metal 后端
 - [ISTA-DASLab](https://huggingface.co/ISTA-DASLab) —— GSQ-RCO 非均匀量化 GGUF
-- [Strata](https://github.com/Niko1221/Strata) —— 思路来源（本项目未使用其代码）
+- [Strata](https://github.com/Niko1221/Strata) —— **前端界面取自该项目**，设计思路也受其启发
+- [SC117](https://huggingface.co/SC117) —— abliterated 量化权重（可选）

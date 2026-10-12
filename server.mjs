@@ -7,11 +7,13 @@
  */
 
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+import { Transform } from 'node:stream';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as strata from './strata-api.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -36,6 +38,9 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
 };
 
 const state = {
@@ -50,6 +55,8 @@ const state = {
   // 防重复采样参数。低比特量化（Q2_0 是 2.4bpw）容易陷入复读，
   // 而多数客户端不传 repeat_penalty，llama.cpp 默认 1.0 = 完全不惩罚。
   sampling: { repeatPenalty: 1.1, repeatLastN: 256, presencePenalty: 0.1 },
+  // Strata UI 适配层用：「Use for other apps too」开关把采样设置共享给所有客户端
+  sharedDefaults: null,
 };
 
 const MAX_LOG = 4000;
@@ -256,6 +263,69 @@ function injectEffort(body) {
   }
 }
 
+/**
+ * 统计嗅探器：把 llama-server 的响应原样透传，同时提取 usage（token 数、缓存命中）
+ * 和 timings（prefill / decode 耗时），供 Strata UI 的 Monitor 请求表格使用。
+ * 流式（SSE）取最后一帧，非流式取整个 JSON。
+ */
+function makeStatsSniffer() {
+  let buf = '';
+  let usage = null, timings = null, finish = null;
+
+  const absorb = (payload) => {
+    if (!payload || payload === '[DONE]') return;
+    try {
+      const j = JSON.parse(payload);
+      if (j.usage) usage = j.usage;
+      if (j.timings) timings = j.timings;
+      const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
+      if (fr) finish = fr;
+    } catch { /* 不完整的一帧，忽略 */ }
+  };
+
+  return new Transform({
+    transform(chunk, _enc, cb) {
+      buf += chunk.toString('utf8');
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        const s = line.trim();
+        if (s.startsWith('data:')) absorb(s.slice(5).trim());
+      }
+      cb(null, chunk);
+    },
+    flush(cb) {
+      if (!usage && !timings) absorb(buf.trim());   // 非流式：整体就是一个 JSON
+      this.emit('stats', { usage, timings, finish });
+      cb();
+    },
+  });
+}
+
+/**
+ * KV 量化类型：优先看控制台自己管理的启动参数；否则从正在跑的 llama-server
+ * 进程命令行里读（用户常直接用 serve.sh 启动，不由控制台托管）。
+ */
+let _kvCache = { at: 0, val: null };
+function kvType() {
+  const args = Array.isArray(state.config) ? state.config : [];
+  const i = args.indexOf('--cache-type-k');
+  if (i >= 0 && args[i + 1]) return args[i + 1];
+  if (Date.now() - _kvCache.at < 10000) return _kvCache.val;
+  let val = null;
+  try {
+    const pids = execFileSync('pgrep', ['-f', 'llama-server'], { encoding: 'utf8', timeout: 2000 })
+      .trim().split('\n').filter(Boolean);
+    for (const pid of pids) {
+      const cmd = execFileSync('ps', ['-o', 'command=', '-p', pid], { encoding: 'utf8', timeout: 2000 });
+      const m = cmd.match(/--cache-type-k\s+(\S+)/);
+      if (m) { val = m[1]; break; }
+    }
+  } catch { /* 没在跑，或拿不到进程信息 */ }
+  _kvCache = { at: Date.now(), val };
+  return val;
+}
+
 /** 通用转发到 llama-server（支持 /v1/* 任意路径，含流式） */
 function proxyAny(req, res, pathname, query, body) {
   const headers = {};
@@ -279,7 +349,30 @@ function proxyAny(req, res, pathname, query, body) {
         'Cache-Control': 'no-cache',
         'X-Accel-Buffering': 'no',
       });
-      r.pipe(res);
+      if (code < 400 && pathname.includes('chat/completions')) {
+        // 边转发边提取 usage / timings，喂给 Strata UI 的请求表格
+        const sniffer = makeStatsSniffer();
+        sniffer.on('stats', ({ usage, timings, finish }) => {
+          if (!usage && !timings) return;
+          // llama.cpp 的流式响应不带 usage，但 timings 里有全部信息：
+          //   cache_n  复用的前缀 token    prompt_n  新处理的
+          //   prompt_ms / predicted_ms   两阶段耗时
+          const cached = usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n ?? 0;
+          const fresh = timings?.prompt_n ?? 0;
+          strata.recordRequest({
+            promptTokens: usage?.prompt_tokens ?? (fresh + cached),
+            reused: cached,
+            outputTokens: usage?.completion_tokens ?? timings?.predicted_n ?? 0,
+            promptMs: timings?.prompt_ms || 0,
+            decodeMs: timings?.predicted_ms || 0,
+            tps: timings?.predicted_per_second || 0,
+            finish: finish === 'length' ? 'length' : 'stop',
+          });
+        });
+        r.pipe(sniffer).pipe(res);
+      } else {
+        r.pipe(res);
+      }
     }
   );
   upstream.on('error', (e) => {
@@ -319,6 +412,53 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
   const p = url.pathname;
   try {
+    // ══════════════════ Strata UI 适配层 ══════════════════
+    // public/web/ 那套前端原本对接 Strata 自己的 Python 服务端。下面这几个端点
+    // 把 llama-server + macOS 的数据组装成它期望的格式。实现见 strata-api.mjs。
+    if (p === '/health' && req.method === 'GET') {
+      sendJson(res, 200, await strata.health(state.servePort));
+      return;
+    }
+    if (p === '/metrics' && req.method === 'GET') {
+      sendJson(res, 200, await strata.metrics(state.servePort, {
+        all: url.searchParams.get('requests') === 'all',
+        kvType: kvType(),
+      }));
+      return;
+    }
+    if (p === '/mcp' && req.method === 'GET') {
+      sendJson(res, 200, strata.mcpList());
+      return;
+    }
+    if (p === '/config' && req.method === 'GET') {
+      sendJson(res, 200, strata.readConfig());
+      return;
+    }
+    if (p === '/config' && req.method === 'POST') {
+      const b = JSON.parse((await readBody(req)) || '{}');
+      sendJson(res, 200, strata.writeConfig(b.set));
+      return;
+    }
+    if (p === '/settings' && req.method === 'GET') {
+      sendJson(res, 200, { shared: !!state.sharedDefaults });
+      return;
+    }
+    if (p === '/settings' && req.method === 'POST') {
+      const b = JSON.parse((await readBody(req)) || '{}');
+      state.sharedDefaults = b.defaults || null;
+      // 共享设置 = 控制台注入层用的默认值，这样其它客户端（Cherry / WorkBuddy）也吃得到
+      if (b.defaults) {
+        if (b.defaults.reasoning_effort) state.reasoningEffort = b.defaults.reasoning_effort;
+      }
+      sendJson(res, 200, { shared: !!state.sharedDefaults });
+      return;
+    }
+    // 旧控制台（模型选择 / 服务启停 / 参数调节）保留在 /console
+    if (p === '/console' || p === '/console/') {
+      serveStatic(req, res, '/console.html');
+      return;
+    }
+
     if (p === '/api/state' && req.method === 'GET') {
       const probe = await probeServer(state.servePort);
       sendJson(res, 200, {

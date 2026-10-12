@@ -28,6 +28,12 @@ find_model() {
   return 1
 }
 
+# runconfig.json 里若指定了 port，stop / status 也要认（必须在 case 之前读）
+if [ -f "$DIR/runconfig.json" ]; then
+  _p="$("$NODE_BIN" -e 'try{const d=require(process.argv[1]);if(d.port)process.stdout.write(String(d.port))}catch(e){}' "$DIR/runconfig.json" 2>/dev/null)"
+  [ -n "$_p" ] && SERVE_PORT="$_p"
+fi
+
 case "${1:-start}" in
   stop)
     PIDS="$(lsof -ti tcp:"$SERVE_PORT" 2>/dev/null || true)"
@@ -81,26 +87,61 @@ fi
 mkdir -p "$APP_HOME/logs"
 cd "$LLAMA_BIN"
 
+# ── 参数：优先用控制台界面（Strata UI 的 Model settings）保存的 runconfig.json ──
+RC="$DIR/runconfig.json"
+if [ -f "$RC" ]; then
+  eval "$("$NODE_BIN" -e '
+    const fs = require("fs");
+    try {
+      const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      for (const [k, v] of Object.entries(d)) {
+        if (v === null || v === undefined || v === "") continue;
+        const name = k.toUpperCase();
+        const val = typeof v === "boolean" ? (v ? "1" : "0") : String(v);
+        console.log(name + "=\"" + val + "\"");
+      }
+    } catch (e) {}
+  ' "$RC" 2>/dev/null)"
+fi
+
+# 默认值（runconfig.json 没给的项用这些）
 # 内存账（48GB 统一内存机型）：
 #   权重 35.9GB + KV(q4_0@65536) ~3GB + 系统 ~8GB ≈ 47GB
 # 上下文 65536 是为了容纳大型客户端（系统提示词 + 工具描述 + 历史）约 50K token 的请求；
-# KV 用 q4_0 而非 q8_0 是 48GB 下的内存所迫 —— 显存/内存更宽裕的机器可用 q8_0 或 f16。
+# KV 用 q4_0 而非 q8_0 是 48GB 下的内存所迫 —— 内存更宽裕的机器可用 q8_0 或 f16。
 #
 # 缓存策略：只用内存 KV 缓存（llama-server 默认行为）。
 # 刻意不加 --prompt-cache / --slot-save-path —— 那两个会把对话状态写到磁盘并长期占用空间。
+: "${CTX:=65536}"
+: "${NGL:=99}"
+: "${NP:=1}"
+: "${KV_TYPE:=q4_0}"
+: "${BATCH:=4096}"
+: "${FA:=1}"
+: "${LAZY:=1}"
+: "${JINJA:=1}"
+: "${PORT:=$SERVE_PORT}"
+SERVE_PORT="$PORT"
 
 MM_ARG=""
 if [ -n "$MMPROJ" ] && [ -f "$MMPROJ" ]; then
   MM_ARG="--mmproj $MMPROJ"
 fi
+FA_ARG="";     [ "$FA" = "1" ]    && FA_ARG="-fa on"
+LAZY_ARG="";   [ "$LAZY" = "1" ]  && LAZY_ARG="-lm mmap --lazy-mode on"
+JINJA_ARG="";  [ "$JINJA" = "1" ] && JINJA_ARG="--jinja"
+KV_ARG=""
+if [ -n "$KV_TYPE" ] && [ "$KV_TYPE" != "f16" ]; then
+  KV_ARG="--cache-type-k $KV_TYPE --cache-type-v $KV_TYPE"
+fi
 
 # shellcheck disable=SC2086
 nohup ./llama-server \
   -m "$MODEL" $MM_ARG \
-  -ngl 99 -c 65536 -np 1 \
-  -lm mmap --lazy-mode on --jinja -fa on \
-  -b 4096 -ub 1024 \
-  --cache-type-k q4_0 --cache-type-v q4_0 \
+  -ngl "$NGL" -c "$CTX" -np "$NP" \
+  $LAZY_ARG $JINJA_ARG $FA_ARG \
+  -b "$BATCH" -ub 1024 \
+  $KV_ARG \
   --metrics \
   --host 127.0.0.1 --port "$SERVE_PORT" \
   > "$LOG" 2>&1 &

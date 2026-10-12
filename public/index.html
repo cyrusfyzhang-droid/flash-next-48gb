@@ -1,677 +1,244 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Strata Mac</title>
-<style>
-  :root{
-    --bg:#0f1115;
-    --surface:#15181e;
-    --surface-2:#1b1f27;
-    --surface-3:#222732;
-    --line:#272c37;
-    --line-strong:#333a48;
-    --text:#e7eaf0;
-    --text-2:#9ba3b2;
-    --text-3:#666e7e;
-    --accent:#7aa2f7;
-    --accent-soft:rgba(122,162,247,.12);
-    --ok:#8fce6a;
-    --ok-soft:rgba(143,206,106,.1);
-    --warn:#e5b567;
-    --warn-soft:rgba(229,181,103,.1);
-    --err:#f07178;
-    --err-soft:rgba(240,113,120,.1);
-    --radius:10px;
-    --radius-sm:7px;
-    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
-  body{
-    background:var(--bg);color:var(--text);
-    font:13px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
-    display:flex;flex-direction:column;overflow:hidden;
-    -webkit-font-smoothing:antialiased;
-  }
-  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
-  input,select,textarea{font:inherit;color:inherit}
-
-  header{
-    display:flex;align-items:center;gap:16px;padding:0 20px;height:56px;flex:0 0 auto;
-    background:var(--surface);border-bottom:1px solid var(--line);
-  }
-  .logo{
-    width:28px;height:28px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
-    background:var(--surface-3);border:1px solid var(--line-strong);
-  }
-  .logo svg{width:15px;height:15px;color:var(--accent)}
-  .title{display:flex;flex-direction:column;line-height:1.3}
-  .title b{font-size:14px;font-weight:500}
-  .title span{font-size:11px;color:var(--text-3)}
-  .stat{
-    display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:6px;
-    font-size:12px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--line);
-  }
-  .stat i{width:6px;height:6px;border-radius:50%;background:var(--text-3);font-style:normal}
-  .stat.on{color:var(--ok);border-color:#2e4a26;background:var(--ok-soft)}
-  .stat.on i{background:var(--ok)}
-  .stat.busy{color:var(--warn);border-color:#4d3f22;background:var(--warn-soft)}
-  .stat.busy i{background:var(--warn)}
-  .sp{flex:1}
-
-  .btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:7px;
-    padding:8px 14px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:400;
-    background:var(--surface-2);border:1px solid var(--line-strong);color:var(--text);
-    transition:background .13s,border-color .13s;white-space:nowrap;
-  }
-  .btn:hover{background:var(--surface-3);border-color:#3f4757}
-  .btn:disabled{opacity:.35;cursor:not-allowed}
-  .btn.pri{background:var(--accent);border-color:var(--accent);color:#0b1020;font-weight:500}
-  .btn.pri:hover{background:#8fb2ff;border-color:#8fb2ff}
-  .btn.dan{background:var(--err-soft);border-color:#5c3238;color:#f5a8ad}
-  .btn.dan:hover{background:rgba(240,113,120,.18)}
-  .btn.flat{background:transparent;border-color:transparent;color:var(--text-2)}
-  .btn.flat:hover{background:var(--surface-2);color:var(--text)}
-  .btn.sm{padding:6px 11px;font-size:12px}
-  .btn svg{width:13px;height:13px;flex:0 0 auto}
-
-  main{flex:1;display:flex;min-height:0}
-  aside{
-    width:424px;flex:0 0 auto;background:var(--surface);
-    border-right:1px solid var(--line);overflow-y:auto;
-    padding:14px;display:flex;flex-direction:column;gap:14px;
-  }
-
-  .card{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius)}
-  .card>.hd{
-    display:flex;align-items:center;gap:9px;padding:13px 16px;
-    cursor:pointer;user-select:none;transition:background .13s;
-    border-radius:var(--radius) var(--radius) 0 0;
-  }
-  .card>.hd:hover{background:var(--surface-3)}
-  .card>.hd svg{width:14px;height:14px;color:var(--text-3);flex:0 0 auto}
-  .card>.hd h3{font-size:13px;font-weight:500;color:var(--text-2)}
-  .card>.hd .cv{margin-left:auto;color:var(--text-3);font-size:9px;transition:transform .18s}
-  .card.shut>.hd .cv{transform:rotate(-90deg)}
-  .card.shut>.hd{border-radius:var(--radius)}
-  .card.shut>.bd{display:none}
-  .card>.bd{padding:2px 16px 16px}
-
-  .row{display:flex;align-items:flex-start;gap:12px;margin:13px 0}
-  .row>label{flex:0 0 124px;font-size:12.5px;color:var(--text-2);padding-top:7px;line-height:1.4}
-  .row>label em{display:block;font-style:normal;font-size:11px;color:var(--text-3);margin-top:2px}
-  .row>.c{flex:1;min-width:0}
-
-  select,input[type=number],input[type=text]{
-    width:100%;background:var(--bg);border:1px solid var(--line-strong);
-    border-radius:var(--radius-sm);padding:8px 11px;font-size:12.5px;transition:border-color .13s;
-  }
-  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent)}
-  input[type=number]{font-family:var(--mono);font-size:12px}
-  select{cursor:pointer;appearance:none;padding-right:30px;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23666e7e' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-    background-repeat:no-repeat;background-position:right 10px center;background-size:11px;
-    text-overflow:ellipsis;
-  }
-  .chk{display:flex;align-items:center;gap:10px;margin:13px 0;font-size:12.5px;color:var(--text-2);cursor:pointer}
-  .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex:0 0 auto}
-  .duo{display:flex;gap:8px;margin-top:14px}
-  .duo .btn{flex:1}
-
-  .code{
-    margin-top:14px;padding:11px 12px;background:var(--bg);border:1px solid var(--line);
-    border-radius:var(--radius-sm);font-family:var(--mono);font-size:11px;color:var(--text-3);
-    white-space:pre-wrap;word-break:break-all;line-height:1.6;max-height:110px;overflow:auto;
-  }
-  .log{
-    padding:11px 12px;background:#0a0c10;border:1px solid var(--line);
-    border-radius:var(--radius-sm);font-family:var(--mono);font-size:11px;color:#7d8697;
-    white-space:pre-wrap;line-height:1.55;max-height:300px;overflow:auto;
-  }
-  .tip{
-    background:var(--warn-soft);border:1px solid #4a3a1c;color:#e8cb96;
-    padding:11px 13px;border-radius:var(--radius-sm);font-size:12px;line-height:1.65;margin-top:13px;
-  }
-  .tip.b{background:var(--accent-soft);border-color:#2b3d5f;color:#a9c1f0}
-  .keyout{
-    margin-top:11px;padding:11px 12px;background:var(--bg);border:1px dashed var(--line-strong);
-    border-radius:var(--radius-sm);font-family:var(--mono);font-size:11.5px;color:var(--accent);
-    word-break:break-all;user-select:all;cursor:text;
-  }
-
-  section.chat{flex:1;display:flex;flex-direction:column;min-width:0}
-  .msgs{flex:1;overflow-y:auto;padding:28px 0}
-  .msg{max-width:860px;margin:0 auto 24px;padding:0 32px;display:flex;gap:14px}
-  .av{
-    width:30px;height:30px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
-    font-size:11px;font-weight:500;background:var(--surface-2);color:var(--text-2);
-    border:1px solid var(--line-strong);
-  }
-  .msg.u .av{background:var(--accent-soft);color:var(--accent);border-color:#2b3d5f}
-  .msg.a .av{background:var(--ok-soft);color:var(--ok);border-color:#2e4a26}
-  .col{flex:1;min-width:0;padding-top:3px}
-  .nm{font-size:12px;color:var(--text-3);margin-bottom:7px}
-  .bb{
-    background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px 17px;white-space:pre-wrap;word-break:break-word;line-height:1.75;
-  }
-  .msg.u .bb{background:var(--surface-3);border-color:var(--line-strong)}
-  .think{
-    border-left:2px solid var(--line-strong);padding:2px 0 2px 13px;
-    margin-bottom:12px;color:var(--text-3);font-size:12.5px;line-height:1.7;
-  }
-  .think b{display:block;font-size:11px;color:var(--accent);font-weight:500;margin-bottom:3px}
-  .mt{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--text-3)}
-  .ph{text-align:center;color:var(--text-3);margin-top:16vh;line-height:2.1}
-  .ph b{display:block;font-size:14px;color:var(--text-2);font-weight:500;margin-bottom:9px}
-
-  .foot{flex:0 0 auto;border-top:1px solid var(--line);background:var(--surface);padding:16px 32px 18px}
-  .foot .in{max-width:860px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
-  textarea{
-    flex:1;background:var(--bg);border:1px solid var(--line-strong);border-radius:var(--radius);
-    padding:12px 14px;resize:none;min-height:46px;max-height:200px;
-    font-size:13px;line-height:1.6;transition:border-color .13s;
-  }
-  .meta{max-width:860px;margin:10px auto 0;display:flex;gap:16px;font-size:11.5px;color:var(--text-3);font-family:var(--mono)}
-
-  .statbar{
-    max-width:860px;margin:0 auto 10px;display:flex;gap:18px;align-items:center;
-    padding:9px 13px;background:var(--surface-2);border:1px solid var(--line);
-    border-radius:var(--radius-sm);font-size:11.5px;font-family:var(--mono);
-    color:var(--text-3);transition:opacity .2s;
-  }
-  .statbar.idle{opacity:.42}
-  .statbar .seg{display:flex;align-items:center;gap:7px;white-space:nowrap}
-  .statbar .lbl{color:var(--text-3)}
-  .statbar .val{color:var(--text-2)}
-  .statbar .val.hi{color:var(--accent)}
-  .statbar .val.ok{color:var(--ok)}
-  .statbar .track{
-    width:88px;height:5px;border-radius:3px;background:var(--bg);
-    overflow:hidden;flex:0 0 auto;
-  }
-  .statbar .track i{
-    display:block;height:100%;width:0%;background:var(--accent);
-    transition:width .18s linear;
-  }
-  .statbar .sp{flex:1}
-
-  ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-thumb{background:#2c333f;border-radius:5px;border:3px solid transparent;background-clip:padding-box}
-  ::-webkit-scrollbar-thumb:hover{background:#3b4351;background-clip:padding-box}
-  ::-webkit-scrollbar-track{background:transparent}
-</style>
+<title>Strata</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="web/tokens.css">
+<link rel="stylesheet" href="web/components.css">
+<link rel="stylesheet" href="web/app.css">
+<script>
+  // the theme before the first paint: the saved choice, else the system's
+  try {
+    const t = localStorage.getItem("strata.theme") ||
+      (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
 </head>
 <body>
-
-<header>
-  <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3L3 8v8l9 5 9-5V8l-9-5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12l9-4M12 12v9M12 12L3 8" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
-  <div class="title"><b>Strata Mac</b><span>llama.cpp · GSQ-RCO GGUF</span></div>
-  <span class="stat" id="stat"><i></i><span id="statTx">检查中</span></span>
-  <span class="sp"></span>
-  <button class="btn pri" id="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>启动服务</button>
-  <button class="btn dan" id="halt" disabled><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="1.8"/></svg>停止</button>
+<header class="st-header">
+  <span class="st-header__brand">Strata</span>
+  <nav class="st-tabs" role="tablist" aria-label="Views">
+    <button class="st-tab" role="tab" id="tab-btn-chat" aria-controls="view-chat" aria-selected="true" data-tab="chat">
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-chat"/></svg>Chat</button>
+    <button class="st-tab" role="tab" id="tab-btn-monitor" aria-controls="view-monitor" aria-selected="false" data-tab="monitor">
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-activity"/></svg>Monitor</button>
+    <button class="st-tab" role="tab" id="tab-btn-about" aria-controls="view-about" aria-selected="false" data-tab="about">
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>About</button>
+  </nav>
+  <span class="st-header__spacer"></span>
+  <span class="st-pill" id="pill" data-state="idle" role="status" aria-live="polite">
+    <span class="st-pill__dot"></span><span id="pill-text">Connecting&hellip;</span></span>
+  <button class="st-btn st-btn--icon" id="theme-btn" title="Light / dark" aria-label="Switch between light and dark">
+    <svg class="st-icon"><use id="theme-icon" href="web/sprite.svg#i-moon"/></svg></button>
 </header>
 
 <main>
-  <aside>
-
-    <div class="card">
-      <div class="hd"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.7"/></svg><h3>模型</h3><span class="cv">▼</span></div>
-      <div class="bd">
-        <div id="none" class="tip" style="display:none">没找到 GGUF 模型。放到这些目录后点「重新扫描」：<div id="roots" style="font-family:var(--mono);font-size:11px;margin-top:6px"></div></div>
-        <div class="row"><label>模型文件</label><div class="c"><select id="mdl"></select></div></div>
-        <div class="row"><label>端口</label><div class="c"><input type="number" id="port" value="8080" min="1024" max="65535"></div></div>
-        <div class="duo"><button class="btn sm" id="rescan">重新扫描</button><button class="btn sm" id="copycmd">复制命令</button></div>
-        <div class="duo"><button class="btn sm" id="clearcache">清空对话缓存</button></div>
-        <div class="code" id="cmd">llama-server</div>
+  <!-- ============================ Chat ============================ -->
+  <section class="view view--chat" id="view-chat" role="tabpanel" aria-labelledby="tab-btn-chat">
+    <div class="chat-scroll" id="chat-scroll">
+      <div class="chat" id="chat">
+        <div class="chat-empty" id="chat-empty">
+          <div class="chat-empty__title">Ask anything</div>
+          <div class="chat-empty__sub" id="chat-empty-sub">The model runs on this PC. Nothing leaves it.</div>
+        </div>
       </div>
     </div>
+    <div class="composer-wrap">
+      <form class="st-composer" id="composer">
+        <div class="attachments" id="attachments" hidden></div>
+        <textarea id="input" rows="2" placeholder="Ask anything&hellip;" aria-label="Message"></textarea>
+        <div class="st-composer__bar">
+          <button type="button" class="st-btn st-btn--icon" id="attach-btn" title="Attach a text file (or drop it here)" aria-label="Attach a file">
+            <svg class="st-icon"><use href="web/sprite.svg#i-attach"/></svg></button>
+          <input type="file" id="file" multiple hidden>
+          <button type="button" class="st-btn st-btn--icon" id="new-btn" title="New chat" aria-label="New chat">
+            <svg class="st-icon"><use href="web/sprite.svg#i-new-chat"/></svg></button>
+          <button type="button" class="st-btn st-btn--icon" id="export-btn" title="Save this chat as Markdown" aria-label="Save this chat">
+            <svg class="st-icon"><use href="web/sprite.svg#i-download"/></svg></button>
+          <button type="button" class="st-btn st-btn--icon" id="sampling-btn" title="Sampling and thinking" aria-label="Sampling and thinking">
+            <svg class="st-icon"><use href="web/sprite.svg#i-settings"/></svg></button>
+          <span class="spacer"></span>
+          <span class="composer-hint" id="composer-hint"></span>
+          <button type="button" class="st-btn st-btn--secondary" id="stop-btn" hidden>
+            <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-stop"/></svg>Stop</button>
+          <button type="submit" class="st-btn st-btn--primary st-btn--send" id="send-btn" aria-label="Send">
+            <svg class="st-icon"><use href="web/sprite.svg#i-send"/></svg></button>
+        </div>
+      </form>
+    </div>
+  </section>
 
-    <div class="card">
-      <div class="hd"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2.5L4.5 14H11l-1 7.5L18.5 10H12l1-7.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><h3>性能</h3><span class="cv">▼</span></div>
-      <div class="bd">
-        <div class="row"><label>GPU 层数<em>-ngl</em></label><div class="c"><input type="number" id="ngl" value="99" min="0" max="999"></div></div>
-        <div class="row"><label>上下文<em>-c，WorkBuddy 需 ≥50K 且在涨</em></label><div class="c"><select id="ctx"><option value="8192">8,192</option><option value="16384">16,384</option><option value="32768">32,768</option><option value="49152">49,152（WorkBuddy 会超）</option><option value="65536" selected>65,536（推荐）</option><option value="131072">131,072（不可用）</option></select></div></div>
-        <div class="row"><label>并行槽<em>-np，越多越吃内存</em></label><div class="c"><select id="np"><option value="1" selected>1（省内存）</option><option value="2">2</option><option value="4">4</option></select></div></div>
-        <div class="row"><label>n-gram 表<em>28.8 GB 分片去向</em></label><div class="c"><select id="lazy"><option value="mmap-lazy" selected>mmap + lazy（留磁盘）</option><option value="mmap">mmap（按需读）</option><option value="resident">全进内存（需 76 GB）</option></select></div></div>
-        <div class="row"><label>批处理<em>-b / -ub</em></label><div class="c"><select id="batch"><option value="">默认</option><option value="4096-1024" selected>4096 / 1024</option><option value="8192-2048">8192 / 2048</option></select></div></div>
-        <div class="row"><label>KV 量化<em>q4_0 是 48GB 的唯一解</em></label><div class="c"><select id="kv"><option value="">f16（最占内存）</option><option value="q8_0">q8_0</option><option value="q4_0" selected>q4_0（48GB 推荐）</option></select></div></div>
-        <div class="row"><label>线程<em>-t</em></label><div class="c"><input type="number" id="thr" placeholder="自动" min="1" max="32"></div></div>
-        <label class="chk"><input type="checkbox" id="mmproj" checked> 启用视觉（--mmproj）</label>
-        <label class="chk"><input type="checkbox" id="fa" checked> Flash Attention</label>
-        <label class="chk"><input type="checkbox" id="jinja" checked> 模型自带对话模板</label>
+  <!-- ============================ Monitor ============================ -->
+  <section class="view view--monitor" id="view-monitor" role="tabpanel" aria-labelledby="tab-btn-monitor" hidden>
+    <div class="monitor">
+      <div class="st-card state-card">
+        <div class="state-card__head">
+          <span class="card-title">Model state</span>
+          <span class="badges" id="state-badges">
+            <span class="st-badge" data-s="idle">Idle</span>
+            <span class="st-badge st-badge--reading" data-s="reading">Reading</span>
+            <span class="st-badge st-badge--generating" data-s="generating">Generating</span>
+            <span class="st-badge st-badge--queued" data-s="queued">Queued</span>
+            <span class="st-badge st-badge--error" data-s="error">Error</span>
+          </span>
+        </div>
+        <div class="state-card__row"><span id="state-label">Waiting for a request</span><span class="muted" id="state-detail"></span></div>
+        <div class="st-progress" id="state-progress"><div class="st-progress__bar" id="state-bar" style="width:0%"></div></div>
+      </div>
+
+      <div class="metrics" id="metrics">
+        <!-- filled by app.js: Speed, GPU load, VRAM, GPU temp, Power, PCIe, CPU, Disk read -->
+      </div>
+
+      <div class="monitor-row">
+        <div class="st-card ctx-card">
+          <span class="card-title">Context fill</span>
+          <div class="ctx-gauge">
+            <svg class="st-gauge" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="st-gauge__track" cx="60" cy="60" r="50" fill="none" stroke-width="10" stroke-linecap="round"
+                      stroke-dasharray="235.6 314.2" transform="rotate(135 60 60)"/>
+              <circle class="st-gauge__fill" id="ctx-fill" cx="60" cy="60" r="50" fill="none" stroke-width="10"
+                      stroke-linecap="round" stroke-dasharray="0 314.2" transform="rotate(135 60 60)"/>
+            </svg>
+            <div class="ctx-gauge__label"><span class="ctx-gauge__pct" id="ctx-pct">0%</span><span class="muted" id="ctx-sub">&ndash;</span></div>
+          </div>
+          <div class="bar-row"><span>Experts in VRAM</span><span class="muted" id="slots-text">&ndash;</span></div>
+          <div class="st-progress"><div class="st-progress__bar" id="slots-bar" style="width:0%"></div></div>
+          <div class="bar-row"><span>System RAM</span><span class="muted" id="ram-text">&ndash;</span></div>
+          <div class="st-progress" id="ram-progress"><div class="st-progress__bar" id="ram-bar" style="width:0%"></div></div>
+          <div class="bar-row"><span>GPU temperature</span><span class="muted" id="temp-text">&ndash;</span></div>
+          <div class="st-progress" data-tone="warn"><div class="st-progress__bar" id="temp-bar" style="width:0%"></div></div>
+        </div>
+        <div class="st-card req-card">
+          <div class="req-head"><span class="card-title">Recent requests</span>
+            <button class="st-btn st-btn--secondary" id="req-all" hidden>Show all</button></div>
+          <div class="table-wrap" id="req-wrap">
+            <table class="st-table">
+              <thead><tr><th>Time</th><th>Status</th><th class="num">Prompt</th><th class="num">Reused</th><th class="num">Output</th>
+                <th class="num" title="New prompt tokens per second, excluding reused cache tokens (engine prompt time)">Prefill t/s</th><th class="num">Decode t/s</th><th class="num" title="While writing the answer: the share of the experts looked up that were already in VRAM. Experts the GPU read over PCIe (--pcie-frac) are not counted in it; their share of all routed experts is shown after it (+N% PCIe)">VRAM hit rate</th><th class="num">Duration</th></tr></thead>
+              <tbody id="req-body"><tr><td colspan="9" class="muted">No requests yet</td></tr></tbody>
+            </table>
+          </div>
+          <p class="muted req-totals" id="req-totals"></p>
+        </div>
+      </div>
+
+      <div class="st-card cc-card" id="cc-card">
+        <div class="req-head"><span class="card-title">Conversation cache</span><span class="muted small" id="cc-sum"></span></div>
+        <div class="cc-bars" id="cc-bars" hidden>
+          <div><div class="bar-row"><span>Parked conversations</span><span class="muted" id="cc-slots-text">&ndash;</span></div>
+            <div class="st-progress"><div class="st-progress__bar" id="cc-slots-bar" style="width:0%"></div></div></div>
+          <div><div class="bar-row"><span>Their memory (RAM)</span><span class="muted" id="cc-mem-text">&ndash;</span></div>
+            <div class="st-progress"><div class="st-progress__bar" id="cc-mem-bar" style="width:0%"></div></div></div>
+        </div>
+        <dl class="facts" id="cc-facts"></dl>
+        <p class="muted small cc-note" id="cc-note"></p>
+      </div>
+
+      <div class="st-card mcp-card" id="mcp-card" hidden>
+        <div class="req-head"><span class="card-title">MCP servers</span><span class="muted small" id="mcp-sum"></span></div>
+        <div class="mcp-list" id="mcp-list"></div>
+        <p class="muted small mcp-note">Their tools run on this PC with your rights, when the model decides to call them
+          (in this page's chat only; switch it off in Sampling).</p>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <div class="hd"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V9M10 19V4M16 19v-6M22 19v-9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><h3>采样</h3><span class="cv">▼</span></div>
-      <div class="bd">
-        <div class="row"><label>思考等级<em>reasoning_effort</em></label><div class="c"><select id="effort">
-          <option value="">不干预（模型默认 xhigh）</option>
-          <option value="low">low — 最快</option>
-          <option value="medium">medium — 平衡</option>
-          <option value="high">high</option>
-          <option value="xhigh">xhigh — 最深</option>
-        </select></div></div>
-        <div class="row"><label>temperature</label><div class="c"><input type="number" id="temp" value="0.7" step="0.05" min="0" max="2"></div></div>
-        <div class="row"><label>top_p</label><div class="c"><input type="number" id="topp" value="0.8" step="0.05" min="0" max="1"></div></div>
-        <div class="row"><label>top_k</label><div class="c"><input type="number" id="topk" value="20" step="1" min="0" max="200"></div></div>
-        <div class="row"><label>min_p</label><div class="c"><input type="number" id="minp" value="0" step="0.01" min="0" max="1"></div></div>
-        <div class="row"><label>重复惩罚<em>防复读，低比特必调</em></label><div class="c"><input type="number" id="rp" value="1.1" step="0.05" min="0.5" max="2"></div></div>
-        <div class="row"><label>检测窗口<em>repeat_last_n</em></label><div class="c"><input type="number" id="rpn" value="256" step="64" min="0" max="2048"></div></div>
-        <div class="row"><label>max_tokens</label><div class="c"><input type="number" id="mt" value="2048" step="128" min="1"></div></div>
-        <div class="duo"><button class="btn sm" id="pinstr">指令预设</button><button class="btn sm" id="pthink">思考预设</button></div>
+  <!-- ============================ About ============================ -->
+  <section class="view view--about" id="view-about" role="tabpanel" aria-labelledby="tab-btn-about" hidden>
+    <div class="about">
+      <div class="st-card">
+        <span class="card-title">Model and engine</span>
+        <dl class="facts" id="facts-engine"></dl>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="hd"><svg viewBox="0 0 24 24" fill="none"><path d="M14.5 8a3.5 3.5 0 10-7 0v8a3.5 3.5 0 107 0V8z" stroke="currentColor" stroke-width="1.7"/><path d="M7.5 12h7" stroke="currentColor" stroke-width="1.7"/></svg><h3>API</h3><span class="cv">▼</span></div>
-      <div class="bd">
-        <div class="row"><label>地址</label><div class="c"><input type="text" id="base" readonly></div></div>
-        <div class="row"><label>API Key<em>留空则不鉴权</em></label><div class="c"><input type="text" id="key" placeholder="留空则不校验"></div></div>
-        <div class="duo"><button class="btn sm" id="genkey">生成密钥</button><button class="btn sm" id="copykey">复制密钥</button></div>
-        <div class="keyout" id="keyout" style="display:none"></div>
-        <div class="tip b">客户端选 OpenAI 类型。重启服务后密钥才生效。</div>
-        <div class="tip">想让 Cherry Studio 这类只有「默认/关闭/自动」三档的客户端也能控制思考深度，把它的地址改成 <b id="proxyHint" style="font-family:var(--mono)">http://127.0.0.1:8791/v1</b>（走本控制台转发，会自动注入上面的思考等级）。</div>
+      <div class="st-card">
+        <span class="card-title">This PC</span>
+        <dl class="facts" id="facts-hw"></dl>
       </div>
-    </div>
-
-    <div class="card shut">
-      <div class="hd"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M7 9h10M7 13h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><h3>日志</h3><span class="cv">▼</span></div>
-      <div class="bd"><div class="log" id="log">（暂无日志）</div><div class="duo"><button class="btn sm" id="clrlog">清空显示</button></div></div>
-    </div>
-
-  </aside>
-
-  <section class="chat">
-    <div class="msgs" id="msgs"><div class="ph" id="ph"><b>选好模型，点右上角「启动服务」</b>首次加载 37.6 GB 权重约 30–60 秒<br>进度显示在「日志」卡片里</div></div>
-    <div class="foot">
-      <div class="in">
-        <textarea id="inp" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
-        <button class="btn pri" id="send" style="padding:12px 20px"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4l17.4-8.4L3.4 3.6v6.2l11.6 2.2-11.6 2.2z"/></svg>发送</button>
-        <button class="btn flat" id="clr">清空</button>
+      <div class="st-card">
+        <span class="card-title">Connect your tools</span>
+        <p class="muted">Any OpenAI- or Anthropic-compatible client works with these addresses.</p>
+        <dl class="facts" id="facts-api"></dl>
       </div>
-      <div class="statbar idle" id="statbar">
-        <span class="seg"><span class="lbl">提示词</span><span class="track"><i id="pfBar"></i></span><span class="val" id="pfPct">—</span></span>
-        <span class="seg"><span class="lbl">处理</span><span class="val" id="pfRate">—</span></span>
-        <span class="seg"><span class="lbl">输出</span><span class="val hi" id="dcRate">—</span></span>
-        <span class="seg"><span class="lbl">缓存</span><span class="val ok" id="cacheHit">—</span></span>
-        <span class="sp"></span>
-        <span class="seg" id="ctxSeg"><span class="lbl">上下文</span><span class="val" id="ctxInfo">—</span></span>
+      <div class="st-card">
+        <span class="card-title">Settings</span>
+        <div class="st-field">
+          <label class="st-label" for="api-key">API key <output>only if the server was started with one</output></label>
+          <input class="st-input" id="api-key" type="password" autocomplete="off" placeholder="Not needed">
+        </div>
+        <div class="toggle-row"><span>Dark theme</span>
+          <button class="st-toggle" id="dark-toggle" role="switch" aria-checked="false" aria-label="Dark theme"></button></div>
+        <p class="muted small">Chats, settings and the key are kept in this browser only.
+          <a href="https://github.com/Niko1221/Strata" target="_blank" rel="noopener noreferrer">Strata on GitHub</a></p>
       </div>
-      <div class="meta"><span id="conn">未连接</span><span id="spd"></span><span class="sp"></span><span id="minfo"></span></div>
+      <div class="st-card cfg-card" id="cfg-card" hidden>
+        <div class="req-head"><span class="card-title">Model settings</span><span class="muted small" id="cfg-file"></span></div>
+        <p class="muted small">Kept in the model's run config for every client. An empty field is the default. They
+          take effect the next time the model starts (close Strata's window and start it again).</p>
+        <form class="cfg-form" id="cfg-form"></form>
+        <div class="cfg-actions"><button class="st-btn st-btn--primary" id="cfg-save" type="button">Save</button>
+          <span class="muted small" id="cfg-msg" role="status"></span></div>
+      </div>
     </div>
   </section>
 </main>
 
-<script>
-const $ = (id) => document.getElementById(id);
-const api = {
-  async g(p){ return (await fetch(p)).json(); },
-  async p(p, b){ return (await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})})).json(); },
-};
-let messages = [], streaming = false, cursor = 0, currentKey = '';
-
-function args(){
-  const m = $('mdl').value;
-  if (!m) return null;
-  const a = ['-m', m, '-ngl', String(+$('ngl').value || 99), '-c', String(+$('ctx').value || 32768)];
-  a.push('-np', String(+$('np').value || 1));
-  a.push('--host', '127.0.0.1', '--port', String(+$('port').value || 8080));
-  const lm = $('lazy').value;
-  if (lm === 'mmap-lazy') a.push('-lm','mmap','--lazy-mode','on');
-  else if (lm === 'mmap') a.push('-lm','mmap');
-  const b = $('batch').value;
-  if (b){ const [x,y] = b.split('-'); a.push('-b',x,'-ub',y); }
-  if ($('mmproj').checked){
-    const sel = $('mdl').selectedOptions[0];
-    if (sel && sel.dataset && sel.dataset.mmproj) a.push('--mmproj', sel.dataset.mmproj);
-  }
-  if ($('fa').checked) a.push('-fa','on');
-  if ($('jinja').checked) a.push('--jinja');
-  const t = +$('thr').value;
-  if (t > 0) a.push('-t', String(t));
-  const kv = $('kv').value;
-  if (kv) a.push('--cache-type-k',kv,'--cache-type-v',kv);
-  return a;
-}
-function preview(){
-  const a = args();
-  $('cmd').textContent = a ? 'llama-server ' + a.map(s=>/\s/.test(s)?`"${s}"`:s).join(' ') : '（先选一个模型）';
-  const sel = $('mdl').selectedOptions[0];
-  const hasMM = !!(sel && sel.dataset && sel.dataset.mmproj);
-  const box = $('mmproj');
-  box.disabled = !hasMM;
-  if (!hasMM) box.checked = false;
-  box.parentElement.style.opacity = hasMM ? '1' : '.4';
-}
-function samp(){
-  return { temperature:+$('temp').value, top_p:+$('topp').value, top_k:+$('topk').value,
-           min_p:+$('minp').value, repeat_penalty:+$('rp').value, max_tokens:+$('mt').value };
-}
-
-async function poll(){
-  try{
-    const s = await api.g('/api/state');
-    const el = $('stat');
-    if (s.reachable){
-      el.className = 'stat on';
-      $('statTx').textContent = s.managed ? `运行中 :${s.servePort}` : `外部 :${s.servePort}`;
-      $('conn').textContent = '已连接';
-      $('go').disabled = true; $('halt').disabled = !s.managed;
-    } else if (s.managed){
-      el.className = 'stat busy'; $('statTx').textContent = '加载中';
-      $('conn').textContent = '加载中'; $('go').disabled = true; $('halt').disabled = false;
-    } else {
-      el.className = 'stat'; $('statTx').textContent = '未运行';
-      $('conn').textContent = '未连接'; $('go').disabled = false; $('halt').disabled = true;
-    }
-    $('base').value = `http://127.0.0.1:${s.servePort}/v1`;
-    $('proxyHint').textContent = `http://127.0.0.1:8791/v1`;
-    if (s.reasoningEffort !== undefined && $('effort').value !== s.reasoningEffort) {
-      $('effort').value = s.reasoningEffort || '';
-    }
-  }catch{ $('statTx').textContent = '后端无响应'; }
-}
-
-async function models(){
-  try{
-    const r = await api.g('/api/models');
-    const sel = $('mdl'); sel.innerHTML = '';
-    if (!r.models || !r.models.length){
-      $('none').style.display = 'block';
-      $('roots').textContent = (r.roots||[]).join('\n');
-      sel.innerHTML = '<option value="">（无模型）</option>';
-    } else {
-      $('none').style.display = 'none';
-      for (const m of r.models){
-        const o = document.createElement('option');
-        o.value = m.path;
-        o.textContent = `${m.name}  ·  ${m.totalGB} GB` + (m.mmproj ? '  ·  视觉' : '');
-        if (m.mmproj) o.dataset.mmproj = m.mmproj;
-        sel.appendChild(o);
-      }
-      $('minfo').textContent = r.models.length + ' 个模型';
-    }
-    preview();
-  }catch{ $('mdl').innerHTML = '<option value="">扫描失败</option>'; }
-}
-
-async function logs(){
-  try{
-    const r = await api.g('/api/log?since=' + cursor);
-    if (r.lines && r.lines.length){
-      const el = $('log');
-      if (el.textContent === '（暂无日志）') el.textContent = '';
-      el.textContent += (el.textContent ? '\n' : '') + r.lines.join('\n');
-      el.scrollTop = el.scrollHeight; cursor = r.total;
-    }
-  }catch{}
-}
-
-$('go').onclick = async () => {
-  const a = args();
-  if (!a){ alert('先选一个模型'); return; }
-  cursor = 0; $('log').textContent = '（暂无日志）';
-  const r = await api.p('/api/serve/start', { args:a, port:+$('port').value||8080, apiKey:currentKey });
-  if (!r.ok) alert(r.error || '启动失败');
-  setTimeout(poll, 1200);
-};
-$('halt').onclick = async () => {
-  const r = await api.p('/api/serve/stop', {});
-  if (!r.ok) alert(r.error || '停止失败');
-  setTimeout(poll, 700);
-};
-$('clearcache').onclick = async () => {
-  if (!confirm('清空对话缓存会重启 llama-server（约 30–60 秒）。\n\n什么时候需要：新开对话却感觉模型还在接续旧内容。\n\n继续？')) return;
-  const r = await api.p('/api/clearcache', {});
-  if (!r.ok) { alert(r.error || '清空失败'); return; }
-  $('spd').textContent = '正在重启，缓存清空中…';
-  setTimeout(() => { $('spd').textContent = ''; }, 8000);
-};
-$('rescan').onclick = models;
-$('copycmd').onclick = async () => {
-  try{ await navigator.clipboard.writeText($('cmd').textContent); $('copycmd').textContent='已复制'; }
-  catch{ $('copycmd').textContent='复制失败'; }
-  setTimeout(()=>{ $('copycmd').textContent='复制命令'; },1500);
-};
-$('clrlog').onclick = () => { $('log').textContent = '（暂无日志）'; cursor = 0; };
-
-$('genkey').onclick = async () => {
-  const r = await api.p('/api/apikey', { generate:true });
-  currentKey = r.key; $('key').value = r.key;
-  $('keyout').style.display='block'; $('keyout').textContent = r.key;
-};
-$('copykey').onclick = async () => {
-  const k = currentKey || $('key').value.trim();
-  if (!k){ alert('先生成或填入密钥'); return; }
-  try{ await navigator.clipboard.writeText(k); $('copykey').textContent='已复制'; }
-  catch{ $('copykey').textContent='复制失败'; }
-  setTimeout(()=>{ $('copykey').textContent='复制密钥'; },1500);
-};
-$('key').addEventListener('input', e => {
-  currentKey = e.target.value.trim();
-  $('keyout').style.display = currentKey ? 'block' : 'none';
-  $('keyout').textContent = currentKey;
-});
-
-$('effort').addEventListener('change', async (e) => {
-  const r = await api.p('/api/effort', { effort: e.target.value });
-  $('spd').textContent = r.effort ? '思考等级 ' + r.effort : '';
-  setTimeout(() => { $('spd').textContent = ''; }, 2500);
-});
-
-/* 把「重复惩罚」推给后端：后端会注入到所有转发请求里（含 Cherry Studio 的）。
-   这是必要的，因为多数客户端根本不传 repeat_penalty。 */
-async function pushSampling(){
-  try{
-    const r = await api.p('/api/sampling', {
-      repeatPenalty: +$('rp').value,
-      repeatLastN: +$('rpn').value,
-    });
-    $('spd').textContent = `重复惩罚 ${r.repeatPenalty} / 窗口 ${r.repeatLastN}`;
-    setTimeout(() => { $('spd').textContent = ''; }, 2500);
-  }catch{}
-}
-$('rp').addEventListener('change', pushSampling);
-$('rpn').addEventListener('change', pushSampling);
-
-$('pinstr').onclick = () => { $('temp').value=0.7; $('topp').value=0.8; $('topk').value=20; $('minp').value=0; $('rp').value=1.1; $('rpn').value=256; pushSampling(); };
-$('pthink').onclick = () => { $('temp').value=1.0; $('topp').value=0.95; $('topk').value=20; $('minp').value=0; $('rp').value=1.15; $('rpn').value=512; pushSampling(); };
-
-/* ── 状态块：提示词处理进度/速度、输出速度、缓存命中 ── */
-const SB = {
-  el: $('statbar'), pfBar: $('pfBar'), pfPct: $('pfPct'),
-  pfRate: $('pfRate'), dcRate: $('dcRate'), cacheHit: $('cacheHit'), ctxInfo: $('ctxInfo'),
-  active(){ this.el.classList.remove('idle'); },
-  idle(){ this.el.classList.add('idle'); },
-  reset(){
-    this.pfBar.style.width = '0%'; this.pfPct.textContent = '—';
-    this.pfRate.textContent = '—'; this.dcRate.textContent = '—';
-    this.cacheHit.textContent = '—';
-    this.cacheHit.className = 'val ok';
-  },
-  prefill(pct, rate){
-    if (pct != null){ this.pfBar.style.width = Math.round(pct) + '%'; this.pfPct.textContent = Math.round(pct) + '%'; }
-    if (rate != null) this.pfRate.textContent = Math.round(rate) + ' tok/s';
-  },
-  decode(rate){ this.dcRate.textContent = rate ? rate.toFixed(1) + ' tok/s' : '—'; },
-  decodeTick(n, remain){
-    if (!n) return;
-    this.dcRate.title = `已生成 ${n} tokens` + (remain ? `，剩余上限 ${remain}` : '');
-  },
-  cache(cached, total){
-    if (!total){ this.cacheHit.textContent = '—'; return; }
-    const p = cached / total * 100;
-    this.cacheHit.textContent = `${cached}/${total} · ${p.toFixed(0)}%`;
-    this.cacheHit.className = 'val ' + (p >= 50 ? 'ok' : '');
-  },
-  ctx(promptTok, ctxLen){
-    if (ctxLen) this.ctxInfo.textContent = `${promptTok || 0} / ${ctxLen}`;
-  },
-};
-
-/* 全局监控：轮询控制台的 /api/monitor（它聚合 llama-server 的 /slots + /metrics）。
-   这样无论请求来自 WorkBuddy、Cherry Studio 还是本页面，状态块都能反映出来。 */
-/* 保留最后一次的有效读数：llama-server 在请求结束后会把槽位清零、
-   metrics 的瞬时速率也归零，所以空闲时要显示「上次结果」而不是一片 — */
-const KEEP = { promptRate: 0, decodeRate: 0, promptTokens: 0, cached: 0, ctx: 0, decoded: 0, busy: false };
-
-async function pollMonitor(){
-  try{
-    const m = await api.g('/api/monitor');
-    if (!m || !m.up){ SB.el.classList.add('idle'); return; }
-
-    const slot = m.slot || {};
-    const met = m.metrics || {};
-    const busy = !!(m.processing || (slot.decoded > 0));
-
-    // 进入/离开忙碌状态时切换透明度
-    if (busy !== KEEP.busy){ SB.el.classList.toggle('idle', !busy); KEEP.busy = busy; }
-    if (busy) SB.el.classList.remove('idle');
-
-    // ── 提示词进度 ──
-    if (slot.promptTokens > 0){
-      const pct = Math.min(100, (slot.processed / slot.promptTokens) * 100);
-      SB.prefill(pct, null);
-      KEEP.promptTokens = slot.promptTokens;
-      if (slot.ctx) KEEP.ctx = slot.ctx;
-    } else if (KEEP.promptTokens){
-      // 请求结束：进度条定格 100%
-      SB.prefill(100, null);
-    } else {
-      SB.prefill(0, null);
-    }
-
-    // ── 速度：只在有非零读数时覆盖 ──
-    if (met.promptRate > 0){ KEEP.promptRate = met.promptRate; }
-    if (met.decodeRate > 0){ KEEP.decodeRate = met.decodeRate; }
-    if (KEEP.promptRate) SB.prefill(null, KEEP.promptRate);
-    if (KEEP.decodeRate) SB.decode(KEEP.decodeRate);
-
-    // ── 输出 token 数（悬停提示）──
-    if (slot.decoded > 0) KEEP.decoded = slot.decoded;
-    if (KEEP.decoded) SB.decodeTick(KEEP.decoded, slot.remain);
-
-    // ── 缓存命中：累计值，只增不减 ──
-    const tot = (met.promptTokens || 0) + (met.cachedTokens || 0);
-    if (tot > 0){ KEEP.cached = met.cachedTokens || 0; KEEP.promptTokens = met.promptTokens || KEEP.promptTokens; }
-    if (KEEP.promptTokens) SB.cache(KEEP.cached, KEEP.promptTokens + KEEP.cached);
-
-    // ── 上下文占用 ──
-    if (KEEP.ctx) SB.ctx(KEEP.promptTokens || met.maxTokens || 0, KEEP.ctx);
-  }catch{}
-}
-
-const msgs = $('msgs'), inp = $('inp');
-function add(role, text){
-  const d = document.createElement('div');
-  d.className = 'msg ' + (role==='user'?'u':'a');
-  d.innerHTML = `<div class="av">${role==='user'?'你':'AI'}</div>
-    <div class="col"><div class="nm">${role==='user'?'你':'Strata Mac'}</div>
-    <div class="bb"><span class="t"></span></div><div class="mt"></div></div>`;
-  d.querySelector('.t').textContent = text || '';
-  msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
-  return d;
-}
-function grow(){ inp.style.height='auto'; inp.style.height = Math.min(inp.scrollHeight,200)+'px'; }
-inp.addEventListener('input', grow);
-inp.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
-
-async function send(){
-  const text = inp.value.trim();
-  if (!text || streaming) return;
-  const ph = $('ph'); if (ph) ph.remove();
-  inp.value=''; grow();
-  messages.push({ role:'user', content:text });
-  add('user', text);
-  const node = add('assistant','');
-  const t = node.querySelector('.t'), bb = node.querySelector('.bb'), mt = node.querySelector('.mt');
-  streaming = true; $('send').disabled = true;
-  SB.reset();
-  const t0 = performance.now();
-  let out='', think='', usage=null, first=0, timings=null, ctxLen=0;
-  try{
-    const resp = await fetch('/api/chat', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ messages, stream:true, stream_options:{include_usage:true}, cache_prompt:true, ...samp() }),
-    });
-    if (!resp.ok){ t.textContent = '请求失败：' + await resp.text(); return; }
-    const rd = resp.body.getReader(), dec = new TextDecoder();
-    let buf='';
-    while(true){
-      const {done, value} = await rd.read();
-      if (done) break;
-      buf += dec.decode(value,{stream:true});
-      const lines = buf.split('\n'); buf = lines.pop();
-      for (const ln of lines){
-        const s = ln.trim();
-        if (!s.startsWith('data:')) continue;
-        const pl = s.slice(5).trim();
-        if (pl === '[DONE]') continue;
-        let j; try{ j = JSON.parse(pl); }catch{ continue; }
-        if (j.usage) usage = j.usage;
-        if (j.timings) timings = j.timings;
-        const dl = j.choices && j.choices[0] && j.choices[0].delta;
-        if (!dl) continue;
-        if (dl.reasoning_content) think += dl.reasoning_content;
-        if (dl.content){
-          if (!out) first = performance.now();
-          out += dl.content;
-        }
-        if (think && !out){
-          let el = bb.querySelector('.think');
-          if (!el){ el = document.createElement('div'); el.className='think';
-            el.innerHTML='<b>思考中</b><span></span>'; bb.insertBefore(el, t); }
-          el.querySelector('span').textContent = think;
-        }
-        t.textContent = out; msgs.scrollTop = msgs.scrollHeight;
-      }
-    }
-    const el = bb.querySelector('.think');
-    if (el && think) el.querySelector('b').textContent = '思考过程';
-    const dt = (performance.now()-t0)/1000;
-    const gd = first ? (performance.now()-first)/1000 : dt;
-
-    // 用 llama.cpp 官方 timings 覆盖实时估算（更准）
-    if (timings){
-      if (timings.prompt_per_second) SB.prefill(100, timings.prompt_per_second);
-      if (timings.predicted_per_second) SB.decode(timings.predicted_per_second);
-    }
-    if (usage){
-      const det = usage.prompt_tokens_details || {};
-      SB.cache(det.cached_tokens || 0, usage.prompt_tokens || 0);
-    }
-    try{
-      const pr = await api.g('/api/state');
-      if (pr && pr.servePort) ctxLen = +$('ctx').value || 32768;
-      SB.ctx(usage?.prompt_tokens, ctxLen);
-    }catch{}
-
-    if (usage){
-      const c = usage.completion_tokens || 0;
-      mt.textContent = `输入 ${usage.prompt_tokens} · 输出 ${c} · ${dt.toFixed(1)}s` + (c&&gd?` · ${(c/gd).toFixed(1)} tok/s`:'');
-      $('spd').textContent = c&&gd ? `约 ${(c/gd).toFixed(1)} tok/s` : '';
-    } else mt.textContent = `${dt.toFixed(1)}s`;
-    if (out) messages.push({ role:'assistant', content:out });
-  }catch(e){ t.textContent = '出错：' + e.message; }
-  finally{ streaming=false; $('send').disabled=false; }
-}
-$('send').onclick = send;
-$('clr').onclick = () => { messages=[]; msgs.innerHTML='<div class="ph" id="ph"><b>对话已清空</b>继续提问吧</div>'; };
-
-document.querySelectorAll('.card>.hd').forEach(h => h.onclick = () => h.parentElement.classList.toggle('shut'));
-['ngl','ctx','np','lazy','batch','kv','thr','mmproj','fa','jinja','port','mdl']
-  .forEach(id => { const e=$(id); e.addEventListener('input',preview); e.addEventListener('change',preview); });
-
-models(); poll(); logs(); pollMonitor();
-// 启动时把界面上的防重复参数推给后端，确保立即生效
-setTimeout(pushSampling, 500);
-setInterval(poll, 3000); setInterval(logs, 1500); setInterval(pollMonitor, 800);
-</script>
+<!-- ============================ Sampling drawer ============================ -->
+<aside class="st-drawer" id="drawer" data-open="false" aria-label="Sampling and thinking" aria-hidden="true">
+  <div class="st-drawer__head"><span class="card-title">Sampling</span>
+    <button class="st-btn st-btn--icon" id="drawer-close" aria-label="Close">
+      <svg class="st-icon"><use href="web/sprite.svg#i-chevron"/></svg></button></div>
+  <div class="st-drawer__body">
+    <div class="st-field">
+      <label class="st-label" for="s-thinking">Thinking <output id="o-thinking"></output></label>
+      <div class="seg" id="s-thinking" role="radiogroup" aria-label="Thinking">
+        <button type="button" role="radio" data-v="none">Off</button><button type="button" role="radio" data-v="low">Low</button>
+        <button type="button" role="radio" data-v="medium">Medium</button><button type="button" role="radio" data-v="high">High</button>
+      </div>
+    </div>
+    <div class="st-field">
+      <label class="st-label" for="s-temp">Temperature <output id="o-temp"></output></label>
+      <input class="st-slider" type="range" id="s-temp" min="0" max="1.5" step="0.05">
+      <span class="muted small">0 = always the most likely word (exact, repeatable)</span>
+    </div>
+    <div class="st-field">
+      <label class="st-label" for="s-topp">Top-p <output id="o-topp"></output></label>
+      <input class="st-slider" type="range" id="s-topp" min="0.05" max="1" step="0.05">
+    </div>
+    <div class="st-field">
+      <label class="st-label" for="s-topk">Top-k <output id="o-topk"></output></label>
+      <input class="st-slider" type="range" id="s-topk" min="1" max="64" step="1">
+    </div>
+    <div class="st-field">
+      <label class="st-label" for="s-max">Max tokens <output>empty = until done</output></label>
+      <input class="st-input" id="s-max" type="number" min="1" step="1" placeholder="Until done">
+    </div>
+    <div class="st-field">
+      <label class="st-label" for="s-seed">Seed <output>empty = random</output></label>
+      <input class="st-input" id="s-seed" type="number" min="1" step="1" placeholder="Random">
+    </div>
+    <div class="toggle-row"><span>Show thinking<br><span class="muted small">expanded while it streams</span></span>
+      <button class="st-toggle" id="s-show" role="switch" aria-checked="true" aria-label="Show thinking"></button></div>
+    <div class="toggle-row" id="mcp-row" hidden><span>Use tools from MCP servers<br><span class="muted small"
+      id="mcp-row-sub">the model may call them while it answers</span></span>
+      <button class="st-toggle" id="s-mcp" role="switch" aria-checked="true" aria-label="Use tools from MCP servers"></button></div>
+    <div class="toggle-row" id="esp-row" hidden><span>Experimental speed projection<br><span class="muted small">the
+      engine's control vector; off = the stock model. Switching reads the chat again once</span></span>
+      <button class="st-toggle" id="s-esp" role="switch" aria-checked="true" aria-label="Experimental speed projection"></button></div>
+    <div class="toggle-row"><span>Use for other apps too<br><span class="muted small">omp and other API clients get
+      these settings for anything they don't set themselves</span></span>
+      <button class="st-toggle" id="s-share" role="switch" aria-checked="false" aria-label="Use for other apps too"></button></div>
+    <div class="drawer-actions">
+      <button class="st-btn st-btn--secondary" id="s-reset" type="button">Reset</button>
+      <button class="st-btn st-btn--primary" id="s-apply" type="button">Apply</button>
+    </div>
+  </div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+<div class="st-toasts" id="toasts" aria-live="polite"></div>
+<script src="web/app.js"></script>
 </body>
 </html>
