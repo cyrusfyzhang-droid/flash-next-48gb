@@ -81,7 +81,7 @@ echo "启动中（端口 ${PORT}，日志 ${LOG}）…"
 echo "  模型：$MODEL"
 echo "  大小：$(echo "scale=1; $(stat -f%z "$MODEL")/1000000000" | bc) GB（分片之一，全部 82.5 GB）"
 echo
-echo "  ⚠️ 另开一个终端跑 ./watch-memory.sh 盯 swap。"
+echo "  ⚠️ 另开一个终端跑 AUTO_STOP=1 ./watch-memory.sh —— swap 超 12 GB 会自动停服务。"
 echo
 
 nohup ./llama-server \

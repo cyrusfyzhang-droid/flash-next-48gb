@@ -1,14 +1,21 @@
 #!/bin/sh
 # 硬跑大模型时的安全绳 —— 盯着内存与 swap
 #
-# thrashing 的特征是 swap 快速增长。看到「⚠️」就 Ctrl-C，然后：
-#   ./serve-ds4.sh stop
+# thrashing 的特征是 swap 快速增长。两种应对：
+#   手动：看到「⚠️」就 Ctrl-C，然后 ./serve-ds4.sh stop
+#   自动：AUTO_STOP=1 ./watch-memory.sh
+#         swap 累计超过 STOP_MB（默认 12288 = 12 GB）就自动停掉 llama-server
+#
+#   ./watch-memory.sh            只报警，不动手
+#   AUTO_STOP=1 ./watch-memory.sh   报警并自动停止
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/env.sh"
 
 PORT="${DS4_PORT:-8081}"
 WARN_MB="${WARN_MB:-200}"     # 单次采样（2 秒）swap 增长超过这个值就报警
+STOP_MB="${STOP_MB:-12288}"   # swap 累计超过这个值就自动停服务
+AUTO_STOP="${AUTO_STOP:-0}"   # 1 = 到线自动 kill
 PAGE=16384
 
 free_gb() {
@@ -46,6 +53,13 @@ while true; do
     DELTA=$((SW_INT - PREV))
   fi
   PREV=$SW_INT
+
+  if [ "$AUTO_STOP" = "1" ] && [ "$SW_INT" -gt "$STOP_MB" ]; then
+    printf "%-10s %-11s MB %-9s MB %-9s GB " "$NOW" "$SW_INT" "$DELTA" "$FREE"
+    echo "🛑 超过止损线 ${STOP_MB} MB —— 自动停止服务"
+    lsof -ti tcp:"$PORT" 2>/dev/null | xargs kill -9 2>/dev/null
+    exit 0
+  fi
 
   if [ "$DELTA" -gt "$WARN_MB" ]; then
     STATE="⚠️  正在 thrashing —— 建议立刻停止"
