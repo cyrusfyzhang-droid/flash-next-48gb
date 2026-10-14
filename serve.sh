@@ -124,6 +124,9 @@ fi
 : "${BATCH:=4096}"
 : "${UBATCH:=1024}"
 : "${FA:=1}"
+# POLL：CPU 忙等轮询等级（0-100）。实测在 32K 上下文下 100 比默认 50 快约 5%，
+# 但在 256K 下无收益、且会拖慢 prefill（此时内存压力才是主瓶颈），故默认留空交给 llama.cpp。
+: "${POLL:=}"
 : "${LAZY:=1}"
 : "${JINJA:=1}"
 : "${PORT:=$SERVE_PORT}"
@@ -134,6 +137,7 @@ if [ -n "$MMPROJ" ] && [ -f "$MMPROJ" ]; then
   MM_ARG="--mmproj $MMPROJ"
 fi
 FA_ARG="";     [ "$FA" = "1" ]    && FA_ARG="-fa on"
+POLL_ARG="";   [ -n "$POLL" ] && [ "$POLL" != "0" ] && POLL_ARG="--poll $POLL"
 LAZY_ARG="";   [ "$LAZY" = "1" ]  && LAZY_ARG="-lm mmap --lazy-mode on"
 JINJA_ARG="";  [ "$JINJA" = "1" ] && JINJA_ARG="--jinja"
 KV_ARG=""
@@ -145,7 +149,7 @@ fi
 nohup ./llama-server \
   -m "$MODEL" $MM_ARG \
   -ngl "$NGL" -c "$CTX" -np "$NP" \
-  $LAZY_ARG $JINJA_ARG $FA_ARG \
+  $LAZY_ARG $JINJA_ARG $FA_ARG $POLL_ARG \
   -b "$BATCH" -ub "$UBATCH" \
   $KV_ARG \
   --metrics \
