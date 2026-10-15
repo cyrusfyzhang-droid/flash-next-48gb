@@ -36,7 +36,7 @@ fi
 
 case "${1:-start}" in
   stop)
-    PIDS="$(lsof -ti tcp:"$SERVE_PORT" 2>/dev/null || true)"
+    PIDS="$(lsof -nP -iTCP:"$SERVE_PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
     if [ -n "$PIDS" ]; then
       echo "$PIDS" | xargs kill 2>/dev/null && echo "已停止 llama-server（端口 ${SERVE_PORT}）"
     else
@@ -45,7 +45,7 @@ case "${1:-start}" in
     exit 0
     ;;
   status)
-    if lsof -ti tcp:"$SERVE_PORT" >/dev/null 2>&1; then
+    if lsof -nP -iTCP:"$SERVE_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
       echo "llama-server 运行中（端口 ${SERVE_PORT}）"
       curl -s -m 5 --noproxy '*' "http://127.0.0.1:$SERVE_PORT/props" \
         | sed -n 's/.*"n_ctx":\([0-9]*\).*/  上下文: \1/p' || true
@@ -79,7 +79,7 @@ if [ ! -x "$LLAMA_BIN/llama-server" ]; then
   exit 1
 fi
 
-if lsof -ti tcp:"$SERVE_PORT" >/dev/null 2>&1; then
+if lsof -nP -iTCP:"$SERVE_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   echo "端口 ${SERVE_PORT} 已被占用，先执行 ./serve.sh stop"
   exit 1
 fi

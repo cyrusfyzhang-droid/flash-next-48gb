@@ -57,7 +57,7 @@ while true; do
   if [ "$AUTO_STOP" = "1" ] && [ "$SW_INT" -gt "$STOP_MB" ]; then
     printf "%-10s %-11s MB %-9s MB %-9s GB " "$NOW" "$SW_INT" "$DELTA" "$FREE"
     echo "🛑 超过止损线 ${STOP_MB} MB —— 自动停止服务"
-    lsof -ti tcp:"$PORT" 2>/dev/null | xargs kill -9 2>/dev/null
+    lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | xargs kill -9 2>/dev/null
     exit 0
   fi
 

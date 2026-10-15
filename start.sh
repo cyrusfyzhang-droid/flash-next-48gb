@@ -21,7 +21,7 @@ FINGERPRINT="$FP_SERVER-$FP_PAGE"
 if [ -f "$STAMP" ]; then
   LAST="$(cat "$STAMP" 2>/dev/null || echo '')"
   if [ "$FINGERPRINT" != "$LAST" ]; then
-    OLD="$(lsof -ti tcp:"$WEB_PORT" 2>/dev/null || true)"
+    OLD="$(lsof -nP -iTCP:"$WEB_PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
     if [ -n "$OLD" ]; then
       echo "$OLD" | xargs kill 2>/dev/null || true
       sleep 1

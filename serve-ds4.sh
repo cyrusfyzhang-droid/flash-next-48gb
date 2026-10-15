@@ -22,7 +22,7 @@ PORT="${DS4_PORT:-8081}"
 
 case "${1:-start}" in
   stop)
-    PIDS="$(lsof -ti tcp:"$PORT" 2>/dev/null || true)"
+    PIDS="$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
     if [ -n "$PIDS" ]; then
       echo "$PIDS" | xargs kill 2>/dev/null && echo "已停止（端口 ${PORT}）"
     else
@@ -31,7 +31,7 @@ case "${1:-start}" in
     exit 0
     ;;
   status)
-    if lsof -ti tcp:"$PORT" >/dev/null 2>&1; then
+    if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
       echo "运行中（端口 ${PORT}）"
       sysctl vm.swapusage
     else
@@ -65,7 +65,7 @@ if [ ! -x "$LLAMA_BIN/llama-server" ]; then
   echo "找不到 llama-server：$LLAMA_BIN/llama-server"; exit 1
 fi
 
-if lsof -ti tcp:"$PORT" >/dev/null 2>&1; then
+if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   echo "端口 ${PORT} 已占用，先执行 ./serve-ds4.sh stop"; exit 1
 fi
 

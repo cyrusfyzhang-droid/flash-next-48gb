@@ -5,7 +5,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/env.sh"
 
 # 先停 llama-server
-PIDS="$(lsof -ti tcp:"$SERVE_PORT" 2>/dev/null || true)"
+PIDS="$(lsof -nP -iTCP:"$SERVE_PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
 if [ -n "$PIDS" ]; then
   echo "$PIDS" | xargs kill 2>/dev/null && echo "已停止 llama-server（端口 $SERVE_PORT）"
 fi
@@ -21,7 +21,7 @@ if [ -f "$PIDFILE" ]; then
   rm -f "$PIDFILE"
 fi
 
-PIDS="$(lsof -ti tcp:"$WEB_PORT" 2>/dev/null || true)"
+PIDS="$(lsof -nP -iTCP:"$WEB_PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
 if [ -n "$PIDS" ]; then
   echo "$PIDS" | xargs kill 2>/dev/null && echo "已停止占用 $WEB_PORT 端口的进程"
 else
